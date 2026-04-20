@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engineering Analytics — Feedback Intelligence</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #09090b; color: #e4e4e7; font-family: 'Inter', system-ui, -apple-system, sans-serif; margin: 0; overflow-x: hidden; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #18181b; }
+  ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+  .sidebar { width: 240px; min-height: 100vh; background: #111113; border-right: 1px solid #1f1f23; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; z-index: 50; }
+  .main { margin-left: 240px; min-height: 100vh; }
+  .view { display: none; padding: 28px 32px; }
+  .view.active { display: block; }
+
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; color: #a1a1aa; transition: all 0.15s; margin: 1px 8px; white-space: nowrap; }
+  .nav-item:hover { background: #1f1f23; color: #e4e4e7; }
+  .nav-item.active { background: #1e1b2e; color: #a78bfa; }
+  .nav-item svg { flex-shrink: 0; }
+
+  .page-title { font-size: 18px; font-weight: 600; color: #fafafa; letter-spacing: -0.3px; }
+  .page-subtitle { font-size: 12px; color: #71717a; margin-top: 2px; }
+
+  .card { background: #111113; border: 1px solid #1f1f23; border-radius: 10px; }
+  .card-header { padding: 16px 20px 12px; border-bottom: 1px solid #1f1f23; }
+  .card-body { padding: 20px; }
+
+  .scope-btn { padding: 5px 14px; font-size: 12px; font-weight: 500; border-radius: 6px; cursor: pointer; border: 1px solid #27272a; color: #a1a1aa; background: transparent; transition: all 0.15s; }
+  .scope-btn:hover { border-color: #3f3f46; color: #d4d4d8; }
+  .scope-btn.active { background: #1e1b2e; border-color: #4c1d95; color: #a78bfa; }
+
+  .metric-tab { padding: 6px 14px; font-size: 12px; font-weight: 500; border-radius: 6px; cursor: pointer; border: none; color: #71717a; background: transparent; transition: all 0.15s; }
+  .metric-tab:hover { color: #a1a1aa; background: #1f1f23; }
+  .metric-tab.active { background: #1e1b2e; color: #a78bfa; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .badge-violet { background: #1e1b2e; color: #a78bfa; border: 1px solid #4c1d95; }
+  .badge-gray { background: #1f1f23; color: #71717a; border: 1px solid #27272a; }
+  .badge-small { background: #141420; color: #7c6fcd; border: 1px solid #312e81; padding: 1px 6px; font-size: 10px; border-radius: 3px; }
+
+  .ai-panel { border: 1px solid #4c1d95; border-radius: 10px; background: linear-gradient(135deg, #0d0a1e 0%, #111113 60%); position: relative; overflow: hidden; }
+  .ai-panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, #7c3aed, transparent); }
+  .ai-panel-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px 10px; border-bottom: 1px solid #1f1f23; }
+  .ai-panel-body { padding: 16px 18px; font-size: 13px; line-height: 1.65; color: #c4b5fd; }
+
+  .drill-panel { border: 1px solid #27272a; border-radius: 10px; background: #0d0d0f; overflow: hidden; transition: all 0.2s; }
+  .drill-panel-header { padding: 14px 18px; background: #111113; border-bottom: 1px solid #1f1f23; display: flex; align-items: center; justify-content: between; gap: 12px; }
+
+  .comment-card { border: 1px solid #1f1f23; border-radius: 8px; padding: 14px 16px; background: #111113; position: relative; }
+  .comment-card:hover { border-color: #2d2d35; }
+
+  .confidence-pill { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+  .confidence-high { background: #1a2e1a; color: #4ade80; }
+  .confidence-det { background: #1e1b2e; color: #818cf8; }
+
+  .toggle-switch { position: relative; display: inline-block; width: 32px; height: 18px; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #27272a; border-radius: 9px; transition: 0.2s; }
+  .toggle-slider:before { position: absolute; content: ''; height: 12px; width: 12px; left: 3px; bottom: 3px; background: #71717a; border-radius: 50%; transition: 0.2s; }
+  input:checked + .toggle-slider { background: #4c1d95; }
+  input:checked + .toggle-slider:before { transform: translateX(14px); background: #a78bfa; }
+
+  .annotation-marker { position: absolute; top: 0; width: 1px; background: repeating-linear-gradient(to bottom, #f59e0b 0, #f59e0b 6px, transparent 6px, transparent 10px); pointer-events: none; }
+
+  .stat-card { background: #111113; border: 1px solid #1f1f23; border-radius: 8px; padding: 14px 16px; }
+  .stat-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; color: #fafafa; }
+  .stat-label { font-size: 11px; color: #71717a; margin-top: 2px; }
+  .stat-delta { font-size: 11px; color: #71717a; margin-top: 4px; }
+
+  .mr-row { display: grid; grid-template-columns: 2fr 1fr 80px 80px 80px 80px; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #1f1f23; font-size: 12px; cursor: pointer; transition: background 0.1s; }
+  .mr-row:hover { background: #111113; }
+  .mr-row:last-child { border-bottom: none; }
+
+  .size-badge { padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 600; text-align: center; }
+  .size-small { background: #1a2535; color: #60a5fa; }
+  .size-zone { background: #1a2e1a; color: #4ade80; }
+  .size-large { background: #2e1a1a; color: #f87171; }
+
+  .flag-btn { opacity: 0; padding: 2px 6px; border-radius: 3px; background: #1f1f23; border: 1px solid #27272a; color: #71717a; font-size: 10px; cursor: pointer; transition: all 0.15s; }
+  .comment-card:hover .flag-btn { opacity: 1; }
+  .flag-btn:hover { color: #f59e0b; border-color: #78350f; background: #1c1404; }
+
+  .sparkline-container { height: 40px; }
+
+  .health-card { border: 1px solid #1f1f23; border-radius: 8px; padding: 16px; background: #111113; }
+  .health-status { width: 8px; height: 8px; border-radius: 50%; }
+  .health-green { background: #22c55e; box-shadow: 0 0 6px #22c55e60; }
+  .health-amber { background: #f59e0b; box-shadow: 0 0 6px #f59e0b60; }
+  .health-red { background: #ef4444; box-shadow: 0 0 6px #ef444460; }
+
+  .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #1f1f23; font-size: 13px; }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-input { background: #0d0d0f; border: 1px solid #27272a; border-radius: 5px; color: #e4e4e7; padding: 4px 10px; font-size: 12px; width: 80px; text-align: right; }
+  .setting-input:focus { outline: none; border-color: #7c3aed; }
+
+  .add-annotation-form { background: #111113; border: 1px solid #27272a; border-radius: 8px; padding: 14px 16px; margin-top: 12px; }
+
+  .chart-container { position: relative; }
+  .author-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: 1px solid #27272a; color: #71717a; background: transparent; transition: all 0.15s; }
+  .author-chip.active { background: #1e1b2e; border-color: #4c1d95; color: #a78bfa; }
+  .author-chip:hover:not(.active) { border-color: #3f3f46; color: #d4d4d8; }
+
+  .dot-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  [data-view] { cursor: pointer; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: #52525b; }
+  .empty-state-icon { margin: 0 auto 12px; opacity: 0.4; }
+
+  .divider { border: none; border-top: 1px solid #1f1f23; margin: 0; }
+
+  .trend-mini-chart { border-top: 1px solid #1f1f23; padding: 16px 20px; }
+
+  .sample-note { font-size: 11px; color: #52525b; padding: 8px 20px 16px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div style="padding: 18px 16px 12px; border-bottom: 1px solid #1f1f23;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #7c3aed, #4f46e5); border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div>
+        <div style="font-size: 13px; font-weight: 600; color: #fafafa;">CodeLens</div>
+        <div style="font-size: 10px; color: #52525b;">Engineering Intelligence</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 8px 0; flex: 1;">
+    <div style="padding: 4px 16px 6px; font-size: 10px; font-weight: 600; color: #3f3f46; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 8px;">Analytics</div>
+    <div class="nav-item active" data-view="feedback" onclick="switchView('feedback')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Feedback Themes
+    </div>
+    <div class="nav-item" data-view="trends" onclick="switchView('trends')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Trends
+    </div>
+    <div style="padding: 4px 16px 6px; font-size: 10px; font-weight: 600; color: #3f3f46; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 12px;">Overview</div>
+    <div class="nav-item" data-view="health" onclick="switchView('health')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Team Health
+    </div>
+    <div class="nav-item" data-view="mrlist" onclick="switchView('mrlist')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+      MR List
+    </div>
+    <div style="padding: 4px 16px 6px; font-size: 10px; font-weight: 600; color: #3f3f46; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 12px;">Config</div>
+    <div class="nav-item" data-view="settings" onclick="switchView('settings')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M12 2v2M12 20v2M2 12H4M20 12h2"/></svg>
+      Settings
+    </div>
+  </div>
+
+  <div style="padding: 12px 14px; border-top: 1px solid #1f1f23;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 26px; height: 26px; background: #1e1b2e; border: 1px solid #4c1d95; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #a78bfa;">SA</div>
+      <div>
+        <div style="font-size: 12px; font-weight: 500; color: #d4d4d8;">Sebastian Aretz</div>
+        <div style="font-size: 10px; color: #52525b;">Tech Lead</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VIEW: FEEDBACK THEMES -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="view-feedback" class="view active">
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <div class="page-title">Feedback Themes</div>
+      <div class="page-subtitle">Recurring review comment patterns · Oct 2025 – Apr 2026</div>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center;">
+      <button class="scope-btn active" id="scope-my" onclick="setScopeView('my')">My Themes</button>
+      <button class="scope-btn" id="scope-team" onclick="setScopeView('team')">Team Themes</button>
+      <button class="scope-btn" id="scope-compare" onclick="setScopeView('compare')">Compare</button>
+    </div>
+  </div>
+
+  <!-- Author selector row (shown for My Themes only) -->
+  <div id="author-selector" style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+    <span style="font-size: 11px; color: #52525b; margin-right: 4px;">Author:</span>
+    <button class="author-chip active" id="chip-onur" onclick="setAuthor('onur')">
+      <div class="dot-indicator" style="background: #8b5cf6;"></div>
+      Onur
+    </button>
+    <button class="author-chip" id="chip-jan" onclick="setAuthor('jan')">
+      <div class="dot-indicator" style="background: #6366f1;"></div>
+      Jan
+    </button>
+    <button class="author-chip" id="chip-sebastian" onclick="setAuthor('sebastian')">
+      <div class="dot-indicator" style="background: #a78bfa;"></div>
+      Sebastian
+    </button>
+  </div>
+
+  <!-- Sebastian small sample warning -->
+  <div id="sebastian-warning" style="display: none; margin-bottom: 20px;">
+    <div style="background: #111113; border: 1px solid #27272a; border-radius: 8px; padding: 20px 22px; display: flex; gap: 14px; align-items: flex-start;">
+      <div style="width: 32px; height: 32px; background: #1f1f23; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div>
+        <div style="font-size: 13px; font-weight: 500; color: #a1a1aa; margin-bottom: 4px;">Sample size too small for meaningful analysis</div>
+        <div style="font-size: 12px; color: #52525b; line-height: 1.6;">Sebastian has received <strong style="color:#71717a;">n=8 classified comments</strong>. The minimum threshold for pattern detection is <strong style="color:#71717a;">30 comments</strong>. More MR reviews are needed before feedback themes can be reliably identified.</div>
+        <div style="margin-top: 10px; font-size: 11px; color: #3f3f46;">Minimum threshold: 30 comments · Current: 8 comments · Progress: 27%</div>
+        <div style="margin-top: 6px; height: 3px; background: #1f1f23; border-radius: 2px; width: 220px;">
+          <div style="height: 3px; background: #3f3f46; border-radius: 2px; width: 27%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main bar chart card -->
+  <div class="card" id="main-chart-card" style="margin-bottom: 20px;">
+    <div class="card-header">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div style="font-size: 13px; font-weight: 600; color: #fafafa;" id="chart-title">Onur's Feedback Categories</div>
+          <div style="font-size: 11px; color: #52525b; margin-top: 2px;">Percentage of MRs receiving at least one comment in this category</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;" id="chart-legend-area">
+          <div class="badge badge-gray" style="font-size: 10px;">81 MRs reviewed</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding-bottom: 8px;">
+      <div style="position: relative; height: 340px;">
+        <canvas id="feedbackChart"></canvas>
+      </div>
+    </div>
+    <div class="sample-note" id="sample-note-text">
+      Based on 81 classified comments across 81 MRs (Oct 2025 – Apr 2026). Click any bar to drill down.
+    </div>
+  </div>
+
+  <!-- Drill-down panel -->
+  <div id="drill-panel" class="drill-panel" style="display: none; margin-bottom: 20px;">
+    <div class="drill-panel-header" style="justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+        <div>
+          <div style="font-size: 13px; font-weight: 600; color: #fafafa;" id="drill-title">Architecture feedback — 25 instances across 16 MRs</div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+            <span class="badge badge-violet">✦ Architecture feedback</span>
+            <span style="font-size: 11px; color: #52525b; display: flex; align-items: center; gap: 4px;">
+              <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #7c3aed;"></span>
+              Classified by: <strong style="color: #71717a;">regex (12 instances)</strong> + <strong style="color: #a78bfa;">LLM (13 instances)</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+      <button onclick="closeDrillPanel()" style="background: transparent; border: none; color: #52525b; cursor: pointer; padding: 4px; border-radius: 4px; hover: background: #1f1f23;" onmouseover="this.style.color='#a1a1aa'" onmouseout="this.style.color='#52525b'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Example comments -->
+    <div style="padding: 16px 18px;" id="drill-comments">
+      <div style="font-size: 11px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px;">Example instances</div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+
+        <div class="comment-card">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                <span style="font-size: 12px; font-weight: 500; color: #d4d4d8;">feat: Implement user session caching layer</span>
+                <span class="badge badge-gray">Onur · 12 days ago</span>
+              </div>
+              <div style="font-size: 12px; color: #a1a1aa; line-height: 1.65; padding: 10px 12px; background: #0d0d0f; border-radius: 6px; border-left: 2px solid #3f3f46; margin-bottom: 8px; font-style: italic;">
+                "This service layer dependency is inverted — the caching logic shouldn't know about the domain model. Consider extracting to an infrastructure layer."
+                <div style="font-size: 10px; color: #52525b; margin-top: 4px; font-style: normal;">— Sebastian Aretz</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="badge badge-violet">Architecture feedback</span>
+                <span style="font-size: 10px; color: #52525b;">Classified by: LLM</span>
+                <span class="confidence-pill confidence-high">94% confidence</span>
+              </div>
+            </div>
+            <button class="flag-btn" title="Flag classification">⚑ Flag</button>
+          </div>
+        </div>
+
+        <div class="comment-card">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                <span style="font-size: 12px; font-weight: 500; color: #d4d4d8;">feat: Add inventory availability check</span>
+                <span class="badge badge-gray">Onur · 18 days ago</span>
+              </div>
+              <div style="font-size: 12px; color: #a1a1aa; line-height: 1.65; padding: 10px 12px; background: #0d0d0f; border-radius: 6px; border-left: 2px solid #3f3f46; margin-bottom: 8px; font-style: italic;">
+                "You're calling the repository directly from the controller — this business logic belongs in the service layer."
+                <div style="font-size: 10px; color: #52525b; margin-top: 4px; font-style: normal;">— Sebastian Aretz</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="badge badge-violet">Architecture feedback</span>
+                <span style="font-size: 10px; color: #52525b;">Classified by: regex <span style="color: #4b5563;">(matched: "service layer")</span></span>
+                <span class="confidence-pill confidence-det">deterministic</span>
+              </div>
+            </div>
+            <button class="flag-btn" title="Flag classification">⚑ Flag</button>
+          </div>
+        </div>
+
+        <div class="comment-card">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                <span style="font-size: 12px; font-weight: 500; color: #d4d4d8;">feat: Customer loyalty points integration</span>
+                <span class="badge badge-gray">Onur · 28 days ago</span>
+              </div>
+              <div style="font-size: 12px; color: #a1a1aa; line-height: 1.65; padding: 10px 12px; background: #0d0d0f; border-radius: 6px; border-left: 2px solid #3f3f46; margin-bottom: 8px; font-style: italic;">
+                "The domain event is being published from the infrastructure adapter, not the domain — this violates the hexagonal architecture boundary."
+                <div style="font-size: 10px; color: #52525b; margin-top: 4px; font-style: normal;">— Sebastian Aretz</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="badge badge-violet">Architecture feedback</span>
+                <span style="font-size: 10px; color: #52525b;">Classified by: LLM</span>
+                <span class="confidence-pill confidence-high">91% confidence</span>
+              </div>
+            </div>
+            <button class="flag-btn" title="Flag classification">⚑ Flag</button>
+          </div>
+        </div>
+
+      </div>
+      <div style="margin-top: 12px; font-size: 11px; color: #3f3f46; padding: 8px 10px; background: #0d0d0f; border-radius: 6px;">
+        Disagree with a classification? The full comment is shown above. Flag it using the ⚑ icon.
+      </div>
+    </div>
+
+    <!-- Mini trend for drill-down -->
+    <div class="trend-mini-chart">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <div style="font-size: 11px; font-weight: 600; color: #71717a;">Category trend — 2-week buckets</div>
+        <div style="font-size: 11px; color: #52525b; display: flex; align-items: center; gap: 4px;">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          <span style="color: #71717a;">Trending slightly down (−40% vs. 3 months ago)</span>
+        </div>
+      </div>
+      <div style="height: 80px; position: relative;">
+        <canvas id="drillTrendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Pattern Analysis Panel -->
+  <div class="ai-panel" id="ai-panel-feedback">
+    <div class="ai-panel-header">
+      <div style="width: 20px; height: 20px; background: linear-gradient(135deg, #7c3aed, #4f46e5); border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <span style="color: white; font-size: 10px; font-weight: 700;">✦</span>
+      </div>
+      <div style="font-size: 12px; font-weight: 600; color: #a78bfa;">AI Pattern Analysis</div>
+      <div class="badge badge-small" style="margin-left: auto;">GPT-4o · Updated 2h ago</div>
+    </div>
+    <div class="ai-panel-body" id="ai-panel-text">
+      <strong style="color: #c4b5fd;">Architecture feedback</strong> is Onur's most recurring category, appearing in <strong style="color: #ddd6fe;">47% of MRs</strong> across 8 different repositories and 7 months. The comments cluster around two specific patterns: <strong style="color: #ddd6fe;">(1) service layer boundary violations</strong> (18 instances), and <strong style="color: #ddd6fe;">(2) domain model exposure in infrastructure code</strong> (7 instances). This suggests a gap in understanding of the team's hexagonal architecture conventions rather than general architectural awareness. <span style="color: #7c6fcd;">Recommended: a targeted pairing session on the project's layering conventions.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VIEW: TRENDS -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="view-trends" class="view">
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <div class="page-title">Trends</div>
+      <div class="page-subtitle">Sprint-aligned performance metrics · Oct 2025 – Apr 2026</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="font-size: 11px; color: #52525b;">Show by author</div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="author-toggle" onchange="toggleAuthors()">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Metric tabs -->
+  <div style="display: flex; gap: 2px; margin-bottom: 20px; background: #111113; border: 1px solid #1f1f23; border-radius: 8px; padding: 4px; width: fit-content;">
+    <button class="metric-tab active" id="tab-cycletime" onclick="setMetric('cycletime')">Cycle Time</button>
+    <button class="metric-tab" id="tab-mrsize" onclick="setMetric('mrsize')">MR Size Distribution</button>
+    <button class="metric-tab" id="tab-rework" onclick="setMetric('rework')">Rework Rate</button>
+    <button class="metric-tab" id="tab-iterations" onclick="setMetric('iterations')">Review Iterations</button>
+  </div>
+
+  <!-- Summary stats row -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;" id="trends-stats">
+    <div class="stat-card">
+      <div class="stat-value">3.5h</div>
+      <div class="stat-label">Median Cycle Time (latest)</div>
+      <div class="stat-delta" style="color: #a78bfa;">↓ 17% over 8 sprints</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">36%</div>
+      <div class="stat-label">MRs in Reviewable Zone</div>
+      <div class="stat-delta">↑ 6pp from Oct 2025</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">11%</div>
+      <div class="stat-label">Rework Rate (avg)</div>
+      <div class="stat-delta">Stable — no significant change</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">1.8</div>
+      <div class="stat-label">Avg Review Iterations</div>
+      <div class="stat-delta">↓ 0.3 since Jan W1</div>
+    </div>
+  </div>
+
+  <!-- Main trends chart card -->
+  <div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <div style="font-size: 13px; font-weight: 600; color: #fafafa;" id="trends-chart-title">Cycle Time — Team Median (hours)</div>
+          <div style="font-size: 11px; color: #52525b; margin-top: 2px;" id="trends-chart-subtitle">2-week sprint-aligned buckets · confidence bands show IQR</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;" id="trends-legend">
+          <div style="display: flex; align-items: center; gap: 5px;"><div class="dot-indicator" style="background: #e4e4e7;"></div><span style="font-size: 11px; color: #71717a;">Team aggregate</span></div>
+          <div style="font-size: 10px; color: #3f3f46;">○ = fewer than 10 MRs (lower confidence)</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div style="position: relative; height: 300px;">
+        <canvas id="trendsChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Annotations bar -->
+    <div style="padding: 12px 20px; border-top: 1px solid #1f1f23; background: #0d0d0f;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <div style="font-size: 11px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.6px;">Timeline Annotations</div>
+        <button onclick="toggleAnnotationForm()" style="display: flex; align-items: center; gap: 5px; background: transparent; border: 1px solid #27272a; border-radius: 5px; color: #71717a; font-size: 11px; padding: 4px 10px; cursor: pointer;" onmouseover="this.style.borderColor='#3f3f46';this.style.color='#a1a1aa'" onmouseout="this.style.borderColor='#27272a';this.style.color='#71717a'">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add annotation
+        </button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;" id="annotations-list">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 2px; height: 16px; background: #f59e0b; border-radius: 1px; flex-shrink: 0;"></div>
+          <span style="font-size: 11px; color: #71717a;"><strong style="color: #fbbf24;">Nov W3</strong> — Onur: started breaking up large MRs</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 2px; height: 16px; background: #f59e0b; border-radius: 1px; flex-shrink: 0;"></div>
+          <span style="font-size: 11px; color: #71717a;"><strong style="color: #fbbf24;">Jan W1</strong> — Team: set reviewable zone working agreement</span>
+        </div>
+      </div>
+      <div id="annotation-form" class="add-annotation-form" style="display: none;">
+        <div style="font-size: 12px; font-weight: 500; color: #a1a1aa; margin-bottom: 10px;">Add timeline annotation</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <select style="background: #0d0d0f; border: 1px solid #27272a; border-radius: 5px; color: #a1a1aa; padding: 5px 10px; font-size: 12px; flex-shrink: 0;">
+            <option>Oct W1</option><option>Oct W3</option><option>Nov W1</option><option>Nov W3</option>
+            <option>Dec W1</option><option>Dec W3</option><option>Jan W1</option><option>Jan W3</option>
+          </select>
+          <input type="text" placeholder="Describe what changed..." style="flex: 1; min-width: 200px; background: #0d0d0f; border: 1px solid #27272a; border-radius: 5px; color: #a1a1aa; padding: 5px 10px; font-size: 12px;" />
+          <button onclick="toggleAnnotationForm()" style="background: #1e1b2e; border: 1px solid #4c1d95; border-radius: 5px; color: #a78bfa; padding: 5px 14px; font-size: 12px; cursor: pointer;">Save</button>
+          <button onclick="toggleAnnotationForm()" style="background: transparent; border: 1px solid #27272a; border-radius: 5px; color: #71717a; padding: 5px 14px; font-size: 12px; cursor: pointer;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Trend Analysis Panel -->
+  <div class="ai-panel">
+    <div class="ai-panel-header">
+      <div style="width: 20px; height: 20px; background: linear-gradient(135deg, #7c3aed, #4f46e5); border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <span style="color: white; font-size: 10px; font-weight: 700;">✦</span>
+      </div>
+      <div style="font-size: 12px; font-weight: 600; color: #a78bfa;">Trend Analysis</div>
+      <div class="badge badge-small" style="margin-left: auto;">GPT-4o · Updated 2h ago</div>
+    </div>
+    <div class="ai-panel-body">
+      The team's median cycle time has decreased <strong style="color: #ddd6fe;">17% over the past 8 sprints</strong>. The most significant change occurred after the Nov W3 annotation (<em>'Onur: started breaking up large MRs'</em>) — Onur's cycle time on large MRs improved from <strong style="color: #ddd6fe;">22.1h median to 15.9h</strong>. Rework rate is stable at <strong style="color: #ddd6fe;">11%</strong> (team average). <span style="color: #7c6fcd;">Recommendation: continue current trajectory and reassess the reviewable zone upper bound (currently 553 lines).</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VIEW: TEAM HEALTH -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="view-health" class="view">
+  <div style="margin-bottom: 24px;">
+    <div class="page-title">Team Health</div>
+    <div class="page-subtitle">Working agreement adherence · Current sprint</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px;">
+    <div class="health-card">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+        <div class="health-status health-green"></div>
+        <span style="font-size: 12px; font-weight: 600; color: #fafafa;">Reviewable Zone</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #fafafa; letter-spacing: -0.5px; margin-bottom: 4px;">84%</div>
+      <div style="font-size: 11px; color: #52525b;">MRs within 70–553 lines</div>
+      <div style="margin-top: 12px; height: 3px; background: #1f1f23; border-radius: 2px;">
+        <div style="height: 3px; width: 84%; background: linear-gradient(90deg, #22c55e, #4ade80); border-radius: 2px;"></div>
+      </div>
+      <div style="font-size: 10px; color: #3f3f46; margin-top: 4px;">Target: ≥75% · +9pp above target</div>
+    </div>
+    <div class="health-card">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+        <div class="health-status health-amber"></div>
+        <span style="font-size: 12px; font-weight: 600; color: #fafafa;">Cycle Time</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #fafafa; letter-spacing: -0.5px; margin-bottom: 4px;">3.5h</div>
+      <div style="font-size: 11px; color: #52525b;">Team median · latest sprint</div>
+      <div style="margin-top: 12px; height: 3px; background: #1f1f23; border-radius: 2px;">
+        <div style="height: 3px; width: 70%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 2px;"></div>
+      </div>
+      <div style="font-size: 10px; color: #3f3f46; margin-top: 4px;">Target: ≤3.0h · Onur skewing team avg</div>
+    </div>
+    <div class="health-card">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+        <div class="health-status health-green"></div>
+        <span style="font-size: 12px; font-weight: 600; color: #fafafa;">Rework Rate</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #fafafa; letter-spacing: -0.5px; margin-bottom: 4px;">11%</div>
+      <div style="font-size: 11px; color: #52525b;">MRs requiring re-review</div>
+      <div style="margin-top: 12px; height: 3px; background: #1f1f23; border-radius: 2px;">
+        <div style="height: 3px; width: 55%; background: linear-gradient(90deg, #22c55e, #4ade80); border-radius: 2px;"></div>
+      </div>
+      <div style="font-size: 10px; color: #3f3f46; margin-top: 4px;">Target: ≤15% · Well within target</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div style="font-size: 13px; font-weight: 600; color: #fafafa;">Cycle Time — Last 6 Sprints</div>
+    </div>
+    <div class="card-body">
+      <div style="height: 180px;"><canvas id="healthSparkline"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VIEW: MR LIST -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="view-mrlist" class="view">
+  <div style="margin-bottom: 24px;">
+    <div class="page-title">MR List</div>
+    <div class="page-subtitle">All reviewed merge requests · Oct 2025 – Apr 2026</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header" style="padding: 10px 16px;">
+      <div class="mr-row" style="cursor: default; padding: 6px 0; border: none; background: transparent; font-size: 10px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px;">
+        <div>Title</div><div>Author</div><div>Size</div><div>Cycle Time</div><div>Comments</div><div>Merged</div>
+      </div>
+    </div>
+    <div id="mr-list-body">
+      <div class="mr-row" onclick="showMRDetail(0)">
+        <div style="color: #d4d4d8; font-size: 12px;">feat: Implement user session caching layer</div>
+        <div style="color: #71717a; font-size: 11px;">Onur</div>
+        <div><span class="size-badge size-zone">In Zone</span></div>
+        <div style="color: #71717a; font-size: 11px;">18.2h</div>
+        <div style="color: #71717a; font-size: 11px;">7 comments</div>
+        <div style="color: #52525b; font-size: 11px;">12d ago</div>
+      </div>
+      <div class="mr-row" onclick="showMRDetail(1)">
+        <div style="color: #d4d4d8; font-size: 12px;">fix: Correct payment gateway timeout handling</div>
+        <div style="color: #71717a; font-size: 11px;">Jan</div>
+        <div><span class="size-badge size-small">Small</span></div>
+        <div style="color: #71717a; font-size: 11px;">2.1h</div>
+        <div style="color: #71717a; font-size: 11px;">2 comments</div>
+        <div style="color: #52525b; font-size: 11px;">15d ago</div>
+      </div>
+      <div class="mr-row" onclick="showMRDetail(2)">
+        <div style="color: #d4d4d8; font-size: 12px;">feat: Add inventory availability check</div>
+        <div style="color: #71717a; font-size: 11px;">Onur</div>
+        <div><span class="size-badge size-large">Oversized</span></div>
+        <div style="color: #71717a; font-size: 11px;">22.1h</div>
+        <div style="color: #71717a; font-size: 11px;">11 comments</div>
+        <div style="color: #52525b; font-size: 11px;">18d ago</div>
+      </div>
+      <div class="mr-row" onclick="showMRDetail(3)">
+        <div style="color: #d4d4d8; font-size: 12px;">refactor: Extract email notification service</div>
+        <div style="color: #71717a; font-size: 11px;">Sebastian</div>
+        <div><span class="size-badge size-small">Small</span></div>
+        <div style="color: #71717a; font-size: 11px;">0.7h</div>
+        <div style="color: #71717a; font-size: 11px;">1 comment</div>
+        <div style="color: #52525b; font-size: 11px;">21d ago</div>
+      </div>
+      <div class="mr-row" onclick="showMRDetail(4)">
+        <div style="color: #d4d4d8; font-size: 12px;">feat: Customer loyalty points integration</div>
+        <div style="color: #71717a; font-size: 11px;">Onur</div>
+        <div><span class="size-badge size-zone">In Zone</span></div>
+        <div style="color: #71717a; font-size: 11px;">16.8h</div>
+        <div style="color: #71717a; font-size: 11px;">5 comments</div>
+        <div style="color: #52525b; font-size: 11px;">28d ago</div>
+      </div>
+      <div class="mr-row" onclick="showMRDetail(5)">
+        <div style="color: #d4d4d8; font-size: 12px;">fix: Resolve N+1 query in order history</div>
+        <div style="color: #71717a; font-size: 11px;">Jan</div>
+        <div><span class="size-badge size-small">Small</span></div>
+        <div style="color: #71717a; font-size: 11px;">3.3h</div>
+        <div style="color: #71717a; font-size: 11px;">3 comments</div>
+        <div style="color: #52525b; font-size: 11px;">32d ago</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MR Detail panel -->
+  <div id="mr-detail" style="display: none; margin-top: 16px;" class="card">
+    <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="font-size: 13px; font-weight: 600; color: #fafafa;" id="mr-detail-title">MR Detail</div>
+      <button onclick="document.getElementById('mr-detail').style.display='none'" style="background: transparent; border: none; color: #52525b; cursor: pointer;" onmouseover="this.style.color='#a1a1aa'" onmouseout="this.style.color='#52525b'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="card-body" id="mr-detail-body" style="font-size: 12px; color: #a1a1aa; line-height: 1.7;">
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VIEW: SETTINGS -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="view-settings" class="view">
+  <div style="margin-bottom: 24px;">
+    <div class="page-title">Settings</div>
+    <div class="page-subtitle">Working agreements and analysis thresholds</div>
+  </div>
+
+  <div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+      <div style="font-size: 13px; font-weight: 600; color: #fafafa;">Working Agreement Thresholds</div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div style="font-size: 13px; color: #d4d4d8;">Reviewable Zone — Minimum</div>
+        <div style="font-size: 11px; color: #52525b;">MRs below this are flagged as too small</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="number" value="70" class="setting-input" />
+        <span style="font-size: 11px; color: #52525b;">lines</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div style="font-size: 13px; color: #d4d4d8;">Reviewable Zone — Maximum</div>
+        <div style="font-size: 11px; color: #52525b;">MRs above this are flagged as oversized</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="number" value="553" class="setting-input" />
+        <span style="font-size: 11px; color: #52525b;">lines</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div style="font-size: 13px; color: #d4d4d8;">Cycle Time Target</div>
+        <div style="font-size: 11px; color: #52525b;">Team median cycle time goal</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="number" value="3" class="setting-input" />
+        <span style="font-size: 11px; color: #52525b;">hours</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div style="font-size: 13px; color: #d4d4d8;">Rework Rate Threshold</div>
+        <div style="font-size: 11px; color: #52525b;">Alert when rework rate exceeds this</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="number" value="15" class="setting-input" />
+        <span style="font-size: 11px; color: #52525b;">%</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div style="font-size: 13px; color: #d4d4d8;">Minimum comments for theme analysis</div>
+        <div style="font-size: 11px; color: #52525b;">Authors below this threshold show the empty state</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="number" value="30" class="setting-input" />
+        <span style="font-size: 11px; color: #52525b;">comments</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div style="font-size: 13px; font-weight: 600; color: #fafafa;">Classification Settings</div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div style="font-size: 13px; color: #d4d4d8;">LLM classification model</div>
+        <div style="font-size: 11px; color: #52525b;">Used for ambiguous comment classification</div>
+      </div>
+      <select style="background: #0d0d0f; border: 1px solid #27272a; border-radius: 5px; color: #a1a1aa; padding: 5px 10px; font-size: 12px;">
+        <option>GPT-4o</option>
+        <option>Claude 3.5 Sonnet</option>
+        <option>Gemini 1.5 Pro</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div style="font-size: 13px; color: #d4d4d8;">Confidence threshold for LLM</div>
+        <div style="font-size: 11px; color: #52525b;">Classifications below this are flagged for review</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="number" value="80" class="setting-input" />
+        <span style="font-size: 11px; color: #52525b;">%</span>
+      </div>
+    </div>
+    <div style="padding: 14px 16px; display: flex; justify-content: flex-end;">
+      <button style="background: #1e1b2e; border: 1px solid #4c1d95; border-radius: 6px; color: #a78bfa; padding: 7px 18px; font-size: 12px; font-weight: 500; cursor: pointer;">Save changes</button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+// =====================================================
+// DATA
+// =====================================================
+const FEEDBACK_CATEGORIES = {
+  onur: [
+    { name: 'Architecture feedback', instances: 25, mrPercentage: 47 },
+    { name: 'Performance feedback', instances: 17, mrPercentage: 32 },
+    { name: 'Testing feedback', instances: 14, mrPercentage: 26 },
+    { name: 'Schema/Data feedback', instances: 13, mrPercentage: 25 },
+    { name: 'Unnecessary code', instances: 13, mrPercentage: 25 },
+    { name: 'Error handling', instances: 9, mrPercentage: 17 },
+    { name: 'Security feedback', instances: 9, mrPercentage: 17 },
+    { name: 'Style/Naming', instances: 6, mrPercentage: 11 },
+  ],
+  jan: [
+    { name: 'Style/Naming', instances: 8, mrPercentage: 18 },
+    { name: 'Testing feedback', instances: 7, mrPercentage: 15 },
+    { name: 'Performance feedback', instances: 4, mrPercentage: 9 },
+    { name: 'Architecture feedback', instances: 3, mrPercentage: 6 },
+  ]
+};
+
+const SPRINT_LABELS = ['Oct W1', 'Oct W3', 'Nov W1', 'Nov W3', 'Dec W1', 'Dec W3', 'Jan W1', 'Jan W3'];
+
+const CYCLE_TIME = {
+  team: [4.2, 3.8, 5.1, 4.4, 3.9, 3.7, 4.1, 3.5],
+  sebastian: [1.2, 1.1, 1.4, 1.0, 0.9, 1.1, 0.8, 0.7],
+  jan: [3.8, 3.2, 4.1, 3.5, 3.1, 2.8, 3.3, 2.9],
+  onur: [18.2, 16.4, 22.1, 19.8, 17.2, 16.8, 18.4, 15.9],
+};
+
+const MR_SIZE_DATA = {
+  labels: ['Oct W1', 'Oct W3', 'Nov W1', 'Nov W3', 'Dec W1', 'Dec W3'],
+  small: [52, 49, 55, 51, 50, 48],
+  zone: [30, 33, 28, 32, 34, 36],
+  oversized: [18, 18, 17, 17, 16, 16],
+};
+
+const AI_INSIGHTS = {
+  onur: {
+    'Architecture feedback': `<strong style="color: #c4b5fd;">Architecture feedback</strong> is Onur's most recurring category, appearing in <strong style="color: #ddd6fe;">47% of MRs</strong> across 8 different repositories and 7 months. The comments cluster around two specific patterns: <strong style="color: #ddd6fe;">(1) service layer boundary violations</strong> (18 instances), and <strong style="color: #ddd6fe;">(2) domain model exposure in infrastructure code</strong> (7 instances). This suggests a gap in understanding of the team's hexagonal architecture conventions rather than general architectural awareness. <span style="color: #7c6fcd;">Recommended: a targeted pairing session on the project's layering conventions.</span>`,
+    'Performance feedback': `<strong style="color: #c4b5fd;">Performance feedback</strong> appears in 32% of Onur's MRs. The pattern is predominantly around <strong style="color: #ddd6fe;">database query optimization</strong> (11 instances) and <strong style="color: #ddd6fe;">in-memory collection operations</strong> (6 instances). This is improving — frequency dropped from 5 instances in Oct W1 to 2 in recent sprints. <span style="color: #7c6fcd;">Recommended: share the team's query review checklist before submitting database-heavy MRs.</span>`,
+    'default': `<strong style="color: #c4b5fd;">Pattern detected across multiple MRs.</strong> This category has been flagged consistently over the review period. Explore the examples above to understand the specific sub-patterns and discuss in the next 1:1.`,
+  },
+  jan: {
+    'default': `<strong style="color: #c4b5fd;">Jan's feedback profile</strong> is significantly lighter than Onur's — 22 classified comments across 44 MRs. The most frequent category is style/naming, which is typically low-impact and quickly resolved. <span style="color: #7c6fcd;">No high-priority patterns detected. Jan is operating well within team norms.</span>`,
+  }
+};
+
+// =====================================================
+// STATE
+// =====================================================
+let currentView = 'feedback';
+let currentScope = 'my';
+let currentAuthor = 'onur';
+let currentMetric = 'cycletime';
+let showByAuthor = false;
+let feedbackChart = null;
+let trendsChart = null;
+let drillTrendChart = null;
+let healthChart = null;
+let selectedCategory = null;
+let annotationFormOpen = false;
+
+// =====================================================
+// NAVIGATION
+// =====================================================
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  document.querySelector('[data-view="' + view + '"]').classList.add('active');
+  currentView = view;
+
+  // Init charts on first show
+  if (view === 'feedback') initFeedbackChart();
+  if (view === 'trends') { setTimeout(() => initTrendsChart(), 50); }
+  if (view === 'health') { setTimeout(() => initHealthChart(), 50); }
+}
+
+// =====================================================
+// FEEDBACK THEMES VIEW
+// =====================================================
+function setScopeView(scope) {
+  currentScope = scope;
+  document.querySelectorAll('.scope-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('scope-' + scope).classList.add('active');
+
+  const authorSelector = document.getElementById('author-selector');
+  const chartTitle = document.getElementById('chart-title');
+  const legendArea = document.getElementById('chart-legend-area');
+
+  if (scope === 'my') {
+    authorSelector.style.display = 'flex';
+    setAuthor(currentAuthor);
+  } else if (scope === 'team') {
+    authorSelector.style.display = 'none';
+    document.getElementById('sebastian-warning').style.display = 'none';
+    document.getElementById('main-chart-card').style.display = 'block';
+    chartTitle.textContent = 'Team Feedback Categories — All Authors Overlaid';
+    document.getElementById('sample-note-text').textContent = 'Showing all team members. Based on classified comments across all MRs (Oct 2025 – Apr 2026).';
+    renderTeamOverlayChart();
+    document.getElementById('drill-panel').style.display = 'none';
+    updateAIPanel(null, 'team');
+  } else if (scope === 'compare') {
+    authorSelector.style.display = 'none';
+    document.getElementById('sebastian-warning').style.display = 'none';
+    document.getElementById('main-chart-card').style.display = 'block';
+    chartTitle.textContent = 'Feedback Categories — Grouped Comparison';
+    document.getElementById('sample-note-text').textContent = 'Onur vs Jan grouped comparison. Sebastian excluded (sample size < 30).';
+    renderCompareChart();
+    document.getElementById('drill-panel').style.display = 'none';
+    updateAIPanel(null, 'compare');
+  }
+}
+
+function setAuthor(author) {
+  currentAuthor = author;
+  document.querySelectorAll('.author-chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('chip-' + author).classList.add('active');
+
+  if (author === 'sebastian') {
+    document.getElementById('sebastian-warning').style.display = 'block';
+    document.getElementById('main-chart-card').style.display = 'none';
+    document.getElementById('drill-panel').style.display = 'none';
+    document.getElementById('ai-panel-feedback').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('sebastian-warning').style.display = 'none';
+  document.getElementById('main-chart-card').style.display = 'block';
+  document.getElementById('ai-panel-feedback').style.display = 'block';
+
+  const titleMap = { onur: "Onur's Feedback Categories", jan: "Jan's Feedback Categories" };
+  const noteMap = {
+    onur: 'Based on 81 classified comments across 81 MRs (Oct 2025 – Apr 2026). Click any bar to drill down.',
+    jan: 'Based on 22 classified comments across 44 MRs (Oct 2025 – Apr 2026). Click any bar to drill down.'
+  };
+  document.getElementById('chart-title').textContent = titleMap[author];
+  document.getElementById('sample-note-text').textContent = noteMap[author];
+
+  initFeedbackChart(author);
+  document.getElementById('drill-panel').style.display = 'none';
+  selectedCategory = null;
+  updateAIPanel(null, author);
+}
+
+function initFeedbackChart(author) {
+  author = author || currentAuthor;
+  if (author === 'sebastian') return;
+
+  const data = FEEDBACK_CATEGORIES[author];
+  if (!data) return;
+
+  const labels = data.map(d => d.name);
+  const values = data.map(d => d.mrPercentage);
+  const instances = data.map(d => d.instances);
+
+  const ctx = document.getElementById('feedbackChart').getContext('2d');
+  if (feedbackChart) feedbackChart.destroy();
+
+  feedbackChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '% of MRs',
+        data: values,
+        backgroundColor: labels.map((_, i) => i === 0 && author === 'onur' ? 'rgba(139, 92, 246, 0.85)' : 'rgba(139, 92, 246, 0.6)'),
+        borderColor: labels.map((_, i) => i === 0 && author === 'onur' ? '#7c3aed' : '#5b21b6'),
+        borderWidth: 1,
+        borderRadius: 3,
+        hoverBackgroundColor: 'rgba(167, 139, 250, 0.85)',
+        barThickness: 22,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 20 } },
+      onClick: (e, elements) => {
+        if (elements.length > 0) {
+          const idx = elements[0].index;
+          handleCategoryClick(data[idx], author);
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a1f',
+          borderColor: '#27272a',
+          borderWidth: 1,
+          titleColor: '#fafafa',
+          bodyColor: '#a1a1aa',
+          padding: 10,
+          callbacks: {
+            title: (items) => items[0].label,
+            label: (item) => {
+              const d = data[item.dataIndex];
+              return [`${item.raw}% of MRs`, `n=${d.instances} instances`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#1f1f23', drawBorder: false },
+          ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + '%' },
+          max: author === 'onur' ? 60 : 30,
+          border: { display: false },
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: '#a1a1aa', font: { size: 12 }, padding: 6 },
+          border: { display: false },
+        }
+      }
+    }
+  });
+}
+
+function renderTeamOverlayChart() {
+  // Merge all categories
+  const allCats = new Set([...FEEDBACK_CATEGORIES.onur.map(d => d.name), ...FEEDBACK_CATEGORIES.jan.map(d => d.name)]);
+  const labels = Array.from(allCats);
+
+  const onurData = labels.map(l => {
+    const found = FEEDBACK_CATEGORIES.onur.find(d => d.name === l);
+    return found ? found.mrPercentage : 0;
+  });
+  const janData = labels.map(l => {
+    const found = FEEDBACK_CATEGORIES.jan.find(d => d.name === l);
+    return found ? found.mrPercentage : 0;
+  });
+
+  const ctx = document.getElementById('feedbackChart').getContext('2d');
+  if (feedbackChart) feedbackChart.destroy();
+
+  feedbackChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Onur', data: onurData, backgroundColor: 'rgba(139, 92, 246, 0.7)', borderColor: '#7c3aed', borderWidth: 1, borderRadius: 3, barThickness: 16 },
+        { label: 'Jan', data: janData, backgroundColor: 'rgba(99, 102, 241, 0.7)', borderColor: '#4f46e5', borderWidth: 1, borderRadius: 3, barThickness: 16 },
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color: '#a1a1aa', font: { size: 11 }, boxWidth: 10, boxHeight: 10, padding: 16 } },
+        tooltip: { backgroundColor: '#1a1a1f', borderColor: '#27272a', borderWidth: 1, titleColor: '#fafafa', bodyColor: '#a1a1aa', padding: 10 }
+      },
+      scales: {
+        x: { grid: { color: '#1f1f23' }, ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + '%' }, border: { display: false } },
+        y: { grid: { display: false }, ticks: { color: '#a1a1aa', font: { size: 12 } }, border: { display: false } }
+      }
+    }
+  });
+}
+
+function renderCompareChart() {
+  const allCats = new Set([...FEEDBACK_CATEGORIES.onur.map(d => d.name), ...FEEDBACK_CATEGORIES.jan.map(d => d.name)]);
+  const labels = Array.from(allCats);
+
+  const onurData = labels.map(l => { const f = FEEDBACK_CATEGORIES.onur.find(d => d.name === l); return f ? f.mrPercentage : 0; });
+  const janData = labels.map(l => { const f = FEEDBACK_CATEGORIES.jan.find(d => d.name === l); return f ? f.mrPercentage : 0; });
+
+  const ctx = document.getElementById('feedbackChart').getContext('2d');
+  if (feedbackChart) feedbackChart.destroy();
+
+  feedbackChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Onur', data: onurData, backgroundColor: 'rgba(139, 92, 246, 0.8)', borderColor: '#7c3aed', borderWidth: 1, borderRadius: 3 },
+        { label: 'Jan', data: janData, backgroundColor: 'rgba(99, 102, 241, 0.8)', borderColor: '#4f46e5', borderWidth: 1, borderRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color: '#a1a1aa', font: { size: 11 }, boxWidth: 10, boxHeight: 10, padding: 16 } },
+        tooltip: { backgroundColor: '#1a1a1f', borderColor: '#27272a', borderWidth: 1, titleColor: '#fafafa', bodyColor: '#a1a1aa', padding: 10, callbacks: { label: (item) => `${item.dataset.label}: ${item.raw}% of MRs` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 10 }, maxRotation: 30 }, border: { display: false } },
+        y: { grid: { color: '#1f1f23' }, ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + '%' }, border: { display: false } }
+      }
+    }
+  });
+}
+
+function handleCategoryClick(categoryData, author) {
+  selectedCategory = categoryData.name;
+  document.getElementById('drill-panel').style.display = 'block';
+  document.getElementById('drill-title').textContent = `${categoryData.name} — ${categoryData.instances} instances across ${Math.round(categoryData.instances * 0.65)} MRs`;
+
+  // Update classification chip
+  const drillHeader = document.querySelector('.drill-panel-header');
+  const classificationChip = drillHeader.querySelector('.badge-violet');
+  if (classificationChip) classificationChip.textContent = '✦ ' + categoryData.name;
+
+  // Update trend
+  initDrillTrendChart(categoryData.name);
+
+  // Update AI panel
+  updateAIPanel(categoryData.name, author);
+
+  // Scroll into view
+  setTimeout(() => {
+    document.getElementById('drill-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+}
+
+function closeDrillPanel() {
+  document.getElementById('drill-panel').style.display = 'none';
+  selectedCategory = null;
+}
+
+function initDrillTrendChart(categoryName) {
+  const trendData = {
+    'Architecture feedback': [5, 4, 6, 3, 4, 3],
+    'Performance feedback': [3, 2, 4, 3, 2, 3],
+    'Testing feedback': [2, 3, 2, 1, 3, 3],
+    'default': [2, 3, 2, 2, 1, 2],
+  };
+
+  const data = trendData[categoryName] || trendData['default'];
+  const labels = ['Oct W1', 'Nov W1', 'Dec W1', 'Jan W1', 'Feb W1', 'Mar W1'];
+
+  const ctx = document.getElementById('drillTrendChart').getContext('2d');
+  if (drillTrendChart) drillTrendChart.destroy();
+
+  drillTrendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: '#7c3aed',
+        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2,
+        pointBackgroundColor: '#7c3aed',
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1a1a1f', borderColor: '#27272a', borderWidth: 1, titleColor: '#fafafa', bodyColor: '#a1a1aa' } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#52525b', font: { size: 10 } }, border: { display: false } },
+        y: { grid: { color: '#1f1f23' }, ticks: { color: '#52525b', font: { size: 10 }, stepSize: 1 }, border: { display: false } }
+      }
+    }
+  });
+}
+
+function updateAIPanel(category, author) {
+  const panel = document.getElementById('ai-panel-text');
+  if (!panel) return;
+
+  if (author === 'team' || author === 'compare') {
+    panel.innerHTML = `The team's combined feedback profile shows <strong style="color: #ddd6fe;">Architecture feedback</strong> as the dominant category for Onur (47%) while Jan's patterns skew toward style and testing. Sebastian is excluded from this view due to insufficient sample size. <span style="color: #7c6fcd;">Most improvement opportunity lies in Onur's architecture patterns — see the My Themes view for individual drill-downs.</span>`;
+    return;
+  }
+
+  const insights = AI_INSIGHTS[author] || {};
+  const text = (category && insights[category]) || insights['default'] || `<strong style="color: #c4b5fd;">Pattern analysis available.</strong> Click a category bar to see the detailed AI analysis for that pattern.`;
+  panel.innerHTML = text;
+}
+
+// =====================================================
+// TRENDS VIEW
+// =====================================================
+function setMetric(metric) {
+  currentMetric = metric;
+  document.querySelectorAll('.metric-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + metric).classList.add('active');
+  initTrendsChart();
+}
+
+function toggleAuthors() {
+  showByAuthor = document.getElementById('author-toggle').checked;
+  initTrendsChart();
+  const legend = document.getElementById('trends-legend');
+  if (showByAuthor) {
+    legend.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 5px;"><div class="dot-indicator" style="background: #e4e4e7;"></div><span style="font-size: 11px; color: #71717a;">Team</span></div>
+      <div style="display: flex; align-items: center; gap: 5px;"><div class="dot-indicator" style="background: #8b5cf6;"></div><span style="font-size: 11px; color: #71717a;">Onur</span></div>
+      <div style="display: flex; align-items: center; gap: 5px;"><div class="dot-indicator" style="background: #6366f1;"></div><span style="font-size: 11px; color: #71717a;">Jan</span></div>
+      <div style="display: flex; align-items: center; gap: 5px;"><div class="dot-indicator" style="background: #a78bfa;"></div><span style="font-size: 11px; color: #71717a;">Sebastian</span></div>
+      <div style="font-size: 10px; color: #3f3f46;">○ = fewer than 10 MRs (lower confidence)</div>
+    `;
+  } else {
+    legend.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 5px;"><div class="dot-indicator" style="background: #e4e4e7;"></div><span style="font-size: 11px; color: #71717a;">Team aggregate</span></div>
+      <div style="font-size: 10px; color: #3f3f46;">○ = fewer than 10 MRs (lower confidence)</div>
+    `;
+  }
+}
+
+function initTrendsChart() {
+  const ctx = document.getElementById('trendsChart');
+  if (!ctx) return;
+
+  if (trendsChart) trendsChart.destroy();
+
+  if (currentMetric === 'mrsize') {
+    renderMRSizeChart(ctx.getContext('2d'));
+    document.getElementById('trends-chart-title').textContent = 'MR Size Distribution — Team Total';
+    document.getElementById('trends-chart-subtitle').textContent = 'Small (<70 lines) · In Zone (70–553) · Oversized (>553)';
+    return;
+  }
+
+  if (currentMetric === 'rework') {
+    renderReworkChart(ctx.getContext('2d'));
+    document.getElementById('trends-chart-title').textContent = 'Rework Rate — Team Average (%)';
+    document.getElementById('trends-chart-subtitle').textContent = 'MRs requiring re-review after merge · 2-week buckets';
+    return;
+  }
+
+  if (currentMetric === 'iterations') {
+    renderIterationsChart(ctx.getContext('2d'));
+    document.getElementById('trends-chart-title').textContent = 'Review Iterations — Average per MR';
+    document.getElementById('trends-chart-subtitle').textContent = 'Number of review rounds before approval · 2-week buckets';
+    return;
+  }
+
+  // Default: cycle time
+  document.getElementById('trends-chart-title').textContent = 'Cycle Time — Team Median (hours)';
+  document.getElementById('trends-chart-subtitle').textContent = '2-week sprint-aligned buckets · shaded area = confidence band';
+
+  const teamBand = {
+    upper: CYCLE_TIME.team.map(v => v + 0.8),
+    lower: CYCLE_TIME.team.map(v => v - 0.7),
+  };
+
+  // Buckets with fewer than 10 obs (we simulate: Oct W1, Nov W1 = low)
+  const lowConfBuckets = [0, 2];
+  const teamPoints = CYCLE_TIME.team.map((v, i) => ({ x: i, y: v }));
+
+  const datasets = [
+    // Confidence band fill
+    {
+      label: 'Upper band',
+      data: teamBand.upper,
+      borderColor: 'transparent',
+      backgroundColor: 'rgba(228, 228, 231, 0.06)',
+      fill: '+1',
+      pointRadius: 0,
+      tension: 0.35,
+    },
+    {
+      label: 'Lower band',
+      data: teamBand.lower,
+      borderColor: 'transparent',
+      backgroundColor: 'rgba(228, 228, 231, 0.06)',
+      fill: false,
+      pointRadius: 0,
+      tension: 0.35,
+    },
+    // Team line
+    {
+      label: 'Team',
+      data: CYCLE_TIME.team,
+      borderColor: '#e4e4e7',
+      backgroundColor: '#e4e4e7',
+      borderWidth: 2.5,
+      tension: 0.35,
+      pointRadius: CYCLE_TIME.team.map((_, i) => 4),
+      pointStyle: CYCLE_TIME.team.map((_, i) => lowConfBuckets.includes(i) ? 'circle' : 'circle'),
+      pointBorderWidth: CYCLE_TIME.team.map((_, i) => lowConfBuckets.includes(i) ? 2 : 0),
+      pointBackgroundColor: CYCLE_TIME.team.map((_, i) => lowConfBuckets.includes(i) ? 'transparent' : '#e4e4e7'),
+      pointBorderColor: CYCLE_TIME.team.map((_, i) => lowConfBuckets.includes(i) ? '#e4e4e7' : '#e4e4e7'),
+    }
+  ];
+
+  if (showByAuthor) {
+    datasets.push({
+      label: 'Onur',
+      data: CYCLE_TIME.onur,
+      borderColor: '#8b5cf6',
+      backgroundColor: '#8b5cf6',
+      borderWidth: 2,
+      tension: 0.35,
+      pointRadius: 3,
+      pointBackgroundColor: '#8b5cf6',
+    });
+    datasets.push({
+      label: 'Jan',
+      data: CYCLE_TIME.jan,
+      borderColor: '#6366f1',
+      backgroundColor: '#6366f1',
+      borderWidth: 2,
+      tension: 0.35,
+      pointRadius: 3,
+      pointBackgroundColor: '#6366f1',
+    });
+    datasets.push({
+      label: 'Sebastian',
+      data: CYCLE_TIME.sebastian,
+      borderColor: '#a78bfa',
+      backgroundColor: '#a78bfa',
+      borderWidth: 2,
+      tension: 0.35,
+      pointRadius: 3,
+      pointBackgroundColor: '#a78bfa',
+    });
+  }
+
+  // Annotation plugin (vertical lines)
+  const annotationPlugin = {
+    id: 'verticalAnnotations',
+    afterDraw(chart) {
+      const ctx = chart.ctx;
+      const xScale = chart.scales.x;
+      const yScale = chart.scales.y;
+
+      const annotations = [
+        { bucketIdx: 3, label: 'Nov W3', sublabel: 'Onur: started breaking up large MRs' },
+        { bucketIdx: 6, label: 'Jan W1', sublabel: 'Team: set reviewable zone WA' },
+      ];
+
+      annotations.forEach(({ bucketIdx, label, sublabel }) => {
+        const x = xScale.getPixelForValue(bucketIdx);
+        const top = yScale.top;
+        const bottom = yScale.bottom;
+
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '600 10px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, x, top - 6);
+        ctx.restore();
+      });
+    }
+  };
+
+  trendsChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    plugins: [annotationPlugin],
+    data: { labels: SPRINT_LABELS, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a1f',
+          borderColor: '#27272a',
+          borderWidth: 1,
+          titleColor: '#fafafa',
+          bodyColor: '#a1a1aa',
+          padding: 10,
+          filter: (item) => item.dataset.label !== 'Upper band' && item.dataset.label !== 'Lower band',
+          callbacks: { label: (item) => `${item.dataset.label}: ${item.raw}h` }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#1f1f23' },
+          ticks: { color: '#71717a', font: { size: 11 } },
+          border: { display: false }
+        },
+        y: {
+          grid: { color: '#1f1f23' },
+          ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + 'h' },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+function renderMRSizeChart(ctx) {
+  trendsChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MR_SIZE_DATA.labels,
+      datasets: [
+        {
+          label: 'Small (<70 lines)',
+          data: MR_SIZE_DATA.small,
+          backgroundColor: 'rgba(99, 102, 241, 0.7)',
+          borderWidth: 0,
+          borderRadius: { topLeft: 0, topRight: 0 },
+        },
+        {
+          label: 'In Zone (70–553)',
+          data: MR_SIZE_DATA.zone,
+          backgroundColor: 'rgba(34, 197, 94, 0.7)',
+          borderWidth: 0,
+          borderRadius: { topLeft: 0, topRight: 0 },
+        },
+        {
+          label: 'Oversized (>553)',
+          data: MR_SIZE_DATA.oversized,
+          backgroundColor: 'rgba(251, 146, 60, 0.6)',
+          borderWidth: 0,
+          borderRadius: { topLeft: 3, topRight: 3 },
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color: '#a1a1aa', font: { size: 11 }, boxWidth: 10, boxHeight: 10, padding: 16 } },
+        tooltip: {
+          backgroundColor: '#1a1a1f', borderColor: '#27272a', borderWidth: 1, titleColor: '#fafafa', bodyColor: '#a1a1aa', padding: 10,
+          callbacks: { label: (item) => `${item.dataset.label}: ${item.raw}%` }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#71717a', font: { size: 11 } }, border: { display: false } },
+        y: { stacked: true, grid: { color: '#1f1f23' }, ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + '%' }, border: { display: false }, max: 100 }
+      }
+    }
+  });
+}
+
+function renderReworkChart(ctx) {
+  const reworkData = [12, 11, 13, 10, 11, 10, 12, 11];
+  trendsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: SPRINT_LABELS,
+      datasets: [{
+        label: 'Rework Rate',
+        data: reworkData,
+        borderColor: '#a78bfa',
+        backgroundColor: 'rgba(167, 139, 250, 0.1)',
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2,
+        pointBackgroundColor: '#a78bfa',
+        pointRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1a1a1f', borderColor: '#27272a', borderWidth: 1, titleColor: '#fafafa', bodyColor: '#a1a1aa', padding: 10, callbacks: { label: (item) => `Rework rate: ${item.raw}%` } }
+      },
+      scales: {
+        x: { grid: { color: '#1f1f23' }, ticks: { color: '#71717a', font: { size: 11 } }, border: { display: false } },
+        y: { grid: { color: '#1f1f23' }, ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + '%' }, border: { display: false }, min: 0, max: 20 }
+      }
+    }
+  });
+}
+
+function renderIterationsChart(ctx) {
+  const iterData = [2.1, 2.0, 2.2, 1.9, 1.8, 1.7, 1.8, 1.8];
+  trendsChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: SPRINT_LABELS,
+      datasets: [{
+        label: 'Avg iterations',
+        data: iterData,
+        backgroundColor: 'rgba(139, 92, 246, 0.65)',
+        borderColor: '#7c3aed',
+        borderWidth: 1,
+        borderRadius: 4,
+        barThickness: 28,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1a1a1f', borderColor: '#27272a', borderWidth: 1, titleColor: '#fafafa', bodyColor: '#a1a1aa', padding: 10, callbacks: { label: (item) => `Avg iterations: ${item.raw}` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 11 } }, border: { display: false } },
+        y: { grid: { color: '#1f1f23' }, ticks: { color: '#52525b', font: { size: 11 } }, border: { display: false }, min: 0, max: 3 }
+      }
+    }
+  });
+}
+
+// =====================================================
+// TEAM HEALTH CHART
+// =====================================================
+function initHealthChart() {
+  const ctx = document.getElementById('healthSparkline');
+  if (!ctx || healthChart) return;
+
+  healthChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: ['Oct W1', 'Nov W1', 'Dec W1', 'Jan W1', 'Feb W1', 'Mar W1'],
+      datasets: [{
+        label: 'Team Median',
+        data: [4.2, 5.1, 3.9, 4.1, 3.8, 3.5],
+        borderColor: '#e4e4e7',
+        backgroundColor: 'rgba(228,228,231,0.05)',
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2,
+        pointBackgroundColor: '#a78bfa',
+        pointRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1a1a1f', borderColor: '#27272a', borderWidth: 1, titleColor: '#fafafa', bodyColor: '#a1a1aa', padding: 10, callbacks: { label: (i) => `Median: ${i.raw}h` } }
+      },
+      scales: {
+        x: { grid: { color: '#1f1f23' }, ticks: { color: '#71717a', font: { size: 11 } }, border: { display: false } },
+        y: { grid: { color: '#1f1f23' }, ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + 'h' }, border: { display: false } }
+      }
+    }
+  });
+}
+
+// =====================================================
+// MR LIST
+// =====================================================
+const MR_DETAILS = [
+  {
+    title: 'feat: Implement user session caching layer',
+    author: 'Onur', size: 'In Zone (284 lines)', cycletime: '18.2h', comments: '7 comments',
+    categories: ['Architecture feedback', 'Performance feedback'],
+    description: 'This MR introduced a Redis-backed session cache. Feedback focused on inverted service layer dependencies and the caching logic having knowledge of the domain model.'
+  },
+  {
+    title: 'fix: Correct payment gateway timeout handling',
+    author: 'Jan', size: 'Small (48 lines)', cycletime: '2.1h', comments: '2 comments',
+    categories: ['Style/Naming'],
+    description: 'Quick fix for a race condition in the payment gateway client. Feedback was minor — variable naming conventions for async patterns.'
+  },
+  {
+    title: 'feat: Add inventory availability check',
+    author: 'Onur', size: 'Oversized (612 lines)', cycletime: '22.1h', comments: '11 comments',
+    categories: ['Architecture feedback', 'Testing feedback', 'Error handling'],
+    description: 'Large feature MR that crossed the oversized threshold. Significant feedback on architecture (direct repository calls from controller), missing error handling for external API failures, and untested edge cases.'
+  },
+  {
+    title: 'refactor: Extract email notification service',
+    author: 'Sebastian', size: 'Small (62 lines)', cycletime: '0.7h', comments: '1 comment',
+    categories: ['Style/Naming'],
+    description: 'Clean refactor extracting the email service. Single minor comment on method naming. Fast cycle time reflects clean, focused scope.'
+  },
+  {
+    title: 'feat: Customer loyalty points integration',
+    author: 'Onur', size: 'In Zone (310 lines)', cycletime: '16.8h', comments: '5 comments',
+    categories: ['Architecture feedback', 'Schema/Data feedback'],
+    description: 'Loyalty points feature with domain event publishing. Architecture feedback around hexagonal boundary violations and schema design concerns around the points ledger structure.'
+  },
+  {
+    title: 'fix: Resolve N+1 query in order history',
+    author: 'Jan', size: 'Small (55 lines)', cycletime: '3.3h', comments: '3 comments',
+    categories: ['Testing feedback', 'Performance feedback'],
+    description: 'Performance fix replacing N+1 query pattern with a join. Feedback on missing regression test and a follow-up question about index coverage.'
+  }
+];
+
+function showMRDetail(idx) {
+  const mr = MR_DETAILS[idx];
+  document.getElementById('mr-detail').style.display = 'block';
+  document.getElementById('mr-detail-title').textContent = mr.title;
+  document.getElementById('mr-detail-body').innerHTML = `
+    <div style="display: grid; grid-template-columns: repeat(4, auto); gap: 20px; margin-bottom: 16px; flex-wrap: wrap;">
+      <div><div style="font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Author</div><div style="color: #d4d4d8;">${mr.author}</div></div>
+      <div><div style="font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Size</div><div style="color: #d4d4d8;">${mr.size}</div></div>
+      <div><div style="font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Cycle Time</div><div style="color: #d4d4d8;">${mr.cycletime}</div></div>
+      <div><div style="font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Comments</div><div style="color: #d4d4d8;">${mr.comments}</div></div>
+    </div>
+    <div style="margin-bottom: 12px; font-size: 12px; color: #71717a;">${mr.description}</div>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+      ${mr.categories.map(c => `<span class="badge badge-violet">${c}</span>`).join('')}
+    </div>
+  `;
+  setTimeout(() => document.getElementById('mr-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+}
+
+// =====================================================
+// UTILITIES
+// =====================================================
+function toggleAnnotationForm() {
+  annotationFormOpen = !annotationFormOpen;
+  document.getElementById('annotation-form').style.display = annotationFormOpen ? 'block' : 'none';
+}
+
+// =====================================================
+// INIT
+// =====================================================
+document.addEventListener('DOMContentLoaded', () => {
+  initFeedbackChart('onur');
+});
+</script>
+</body>
+</html>

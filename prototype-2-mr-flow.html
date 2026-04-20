@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engineering Analytics — MR Flow</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #161b22; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+  /* Sidebar */
+  #sidebar { width: 240px; min-width: 240px; background: #161b22; border-right: 1px solid #21262d; height: 100vh; position: fixed; left: 0; top: 0; display: flex; flex-direction: column; z-index: 40; }
+  #main-content { margin-left: 240px; min-height: 100vh; }
+
+  /* Nav items */
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 6px; cursor: pointer; color: #8b949e; font-size: 14px; font-weight: 500; transition: all 0.15s; margin: 1px 8px; }
+  .nav-item:hover { background: #21262d; color: #e6edf3; }
+  .nav-item.active { background: #21262d; color: #e6edf3; }
+  .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* Views */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Filter bar */
+  select.filter-select { background: #161b22; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 6px 28px 6px 10px; font-size: 13px; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+  select.filter-select:focus { outline: none; border-color: #58a6ff; }
+
+  /* MR Table */
+  .mr-table { width: 100%; border-collapse: collapse; }
+  .mr-table th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #21262d; white-space: nowrap; }
+  .mr-table td { padding: 11px 12px; border-bottom: 1px solid #161b22; font-size: 13px; vertical-align: middle; }
+  .mr-table tr:hover td { background: #161b22; }
+  .mr-table tr.unlinked-highlight td { background: rgba(245,158,11,0.06); }
+  .mr-table tr.unlinked-highlight:hover td { background: rgba(245,158,11,0.1); }
+
+  /* Cycle time bar */
+  .cycle-bar-container { display: flex; align-items: center; gap: 8px; min-width: 160px; }
+  .cycle-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; flex: 1; min-width: 100px; }
+  .cycle-segment { height: 100%; transition: width 0.3s; }
+  .seg-coding { background: #4f8cc9; }
+  .seg-pickup { background: #a78bfa; }
+  .seg-review { background: #f59e0b; }
+  .cycle-total { font-size: 12px; color: #8b949e; white-space: nowrap; }
+
+  /* Size badge */
+  .size-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+  .size-small { background: #21262d; color: #8b949e; }
+  .size-inzone { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+  .size-oversized { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+
+  /* Status badge */
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .status-merged { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .status-open { background: rgba(16,185,129,0.15); color: #10b981; }
+  .status-draft { background: #21262d; color: #8b949e; }
+
+  /* Author avatar */
+  .avatar { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+
+  /* Ticket chip */
+  .ticket-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; background: #21262d; color: #79c0ff; border: 1px solid #30363d; cursor: default; white-space: nowrap; }
+  .ticket-chip.manually-linked { color: #8b949e; }
+  .ticket-chip .edit-icon { width: 10px; height: 10px; color: #8b949e; }
+  .link-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .link-btn:hover { background: rgba(245,158,11,0.25); }
+
+  /* Inline popover */
+  .ticket-popover { position: absolute; z-index: 100; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); width: 320px; padding: 8px 0; }
+  .ticket-popover input { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 13px; color: #e6edf3; outline: none; margin: 0 8px; width: calc(100% - 16px); }
+  .ticket-popover input:focus { border-color: #58a6ff; }
+  .ticket-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background 0.1s; }
+  .ticket-option:hover { background: #21262d; }
+  .ticket-key { font-size: 12px; font-weight: 600; color: #79c0ff; flex-shrink: 0; }
+  .ticket-title { font-size: 12px; color: #e6edf3; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ticket-meta { font-size: 11px; color: #8b949e; white-space: nowrap; }
+  .ticket-status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Detail panel */
+  #detail-panel { position: fixed; top: 0; right: 0; width: 50%; height: 100vh; background: #161b22; border-left: 1px solid #21262d; z-index: 50; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; overflow: hidden; }
+  #detail-panel.open { transform: translateX(0); }
+  #detail-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 49; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  #detail-backdrop.open { opacity: 1; pointer-events: all; }
+  #detail-panel-scroll { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* Cycle time gantt (detail panel) */
+  .gantt-bar-wrap { display: flex; height: 28px; border-radius: 6px; overflow: hidden; width: 100%; }
+  .gantt-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.85); transition: width 0.4s; position: relative; overflow: hidden; white-space: nowrap; }
+  .gantt-seg span { padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gantt-coding { background: #4f8cc9; }
+  .gantt-pickup { background: #a78bfa; }
+  .gantt-review { background: #f59e0b; }
+
+  /* Comment thread */
+  .comment-card { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 12px; }
+  .comment-tag { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .tag-arch { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+  .tag-perf { background: rgba(245,158,11,0.15); color: #fcd34d; }
+
+  /* AI insight */
+  .ai-insight { border-radius: 8px; padding: 14px 16px; background: linear-gradient(135deg, rgba(124,58,237,0.08), rgba(139,92,246,0.12)); border: 1px solid rgba(139,92,246,0.3); position: relative; overflow: hidden; }
+  .ai-insight::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, #7c3aed, #a78bfa, #7c3aed); }
+
+  /* Stats cards */
+  .stat-card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px 20px; }
+
+  /* Unlinked warning banner */
+  .unlinked-banner { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.15s; }
+  .unlinked-banner:hover { background: rgba(245,158,11,0.15); }
+
+  /* Phase legend */
+  .phase-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Highlight ring on selected row */
+  .mr-row-selected td { background: rgba(88,166,255,0.04) !important; }
+  .mr-row-selected td:first-child { box-shadow: inset 3px 0 0 #58a6ff; }
+
+  /* Tooltip */
+  .tooltip-wrap { position: relative; }
+  .tooltip-wrap .tt { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #1c2128; border: 1px solid #30363d; border-radius: 5px; padding: 5px 9px; font-size: 11px; white-space: nowrap; color: #e6edf3; pointer-events: none; z-index: 200; }
+  .tooltip-wrap:hover .tt { display: block; }
+
+  /* Chart containers */
+  .chart-wrap { position: relative; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="p-4 border-b border-[#21262d]">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-md bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+        <i data-lucide="git-merge" class="w-3.5 h-3.5 text-emerald-400"></i>
+      </div>
+      <div>
+        <div class="text-sm font-semibold text-[#e6edf3] leading-tight">DevInsights</div>
+        <div class="text-[11px] text-[#8b949e]">Engineering Analytics</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="flex-1 py-3 overflow-y-auto">
+    <div class="px-4 mb-1">
+      <span class="text-[10px] font-semibold text-[#484f58] uppercase tracking-widest">Navigation</span>
+    </div>
+    <div class="nav-item active" onclick="showView('mr-list')">
+      <i data-lucide="git-pull-request" class="icon"></i>
+      <span>Merge Requests</span>
+    </div>
+    <div class="nav-item" onclick="showView('team-health')">
+      <i data-lucide="users" class="icon"></i>
+      <span>Team Health</span>
+    </div>
+    <div class="nav-item" onclick="showView('feedback-themes')">
+      <i data-lucide="message-square" class="icon"></i>
+      <span>Feedback Themes</span>
+    </div>
+    <div class="nav-item" onclick="showView('trends')">
+      <i data-lucide="trending-up" class="icon"></i>
+      <span>Trends</span>
+    </div>
+
+    <div class="px-4 mt-4 mb-1">
+      <span class="text-[10px] font-semibold text-[#484f58] uppercase tracking-widest">Settings</span>
+    </div>
+    <div class="nav-item">
+      <i data-lucide="settings" class="icon"></i>
+      <span>Preferences</span>
+    </div>
+    <div class="nav-item">
+      <i data-lucide="link" class="icon"></i>
+      <span>Integrations</span>
+    </div>
+  </nav>
+
+  <div class="p-4 border-t border-[#21262d]">
+    <div class="flex items-center gap-3">
+      <div class="avatar" style="background: rgba(99,102,241,0.25); color: #a5b4fc;">SA</div>
+      <div class="min-w-0">
+        <div class="text-xs font-medium text-[#e6edf3] truncate">Sebastian Aretz</div>
+        <div class="text-[11px] text-[#8b949e]">Tech Lead</div>
+      </div>
+      <i data-lucide="chevron-up-down" class="w-3.5 h-3.5 text-[#484f58] flex-shrink-0 ml-auto"></i>
+    </div>
+  </div>
+</aside>
+
+<!-- Main Content -->
+<div id="main-content">
+
+  <!-- ===================== VIEW: MR LIST ===================== -->
+  <div id="view-mr-list" class="view active p-6">
+
+    <!-- Page Header -->
+    <div class="flex items-start justify-between mb-5">
+      <div>
+        <h1 class="text-xl font-semibold text-[#e6edf3]">Merge Requests</h1>
+        <p class="text-sm text-[#8b949e] mt-0.5">MR-centric workflow overview — last 2 weeks</p>
+      </div>
+      <button class="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-md text-[#e6edf3] transition-colors">
+        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        Refresh
+      </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      <select id="filter-range" class="filter-select" onchange="applyFilters()">
+        <option value="2w">Last 2 weeks</option>
+        <option value="1m">Last month</option>
+        <option value="3m">Last 3 months</option>
+        <option value="6m">Last 6 months</option>
+      </select>
+      <select id="filter-size" class="filter-select" onchange="applyFilters()">
+        <option value="all">All sizes</option>
+        <option value="small">Small &lt;70</option>
+        <option value="inzone">In Zone 70–553</option>
+        <option value="oversized">Oversized &gt;553</option>
+      </select>
+      <select id="filter-author" class="filter-select" onchange="applyFilters()">
+        <option value="all">All authors</option>
+        <option value="Sebastian">Sebastian</option>
+        <option value="Jan">Jan</option>
+        <option value="Onur">Onur</option>
+      </select>
+      <select id="filter-link" class="filter-select" onchange="applyFilters()">
+        <option value="all">All link status</option>
+        <option value="linked">Linked</option>
+        <option value="unlinked">Unlinked</option>
+      </select>
+      <div class="ml-auto flex items-center gap-2">
+        <!-- Phase legend -->
+        <div class="flex items-center gap-1.5 text-xs text-[#8b949e] bg-[#161b22] border border-[#21262d] rounded-md px-3 py-1.5">
+          <div class="phase-dot" style="background:#4f8cc9"></div><span>Coding</span>
+          <div class="phase-dot ml-2" style="background:#a78bfa"></div><span>Pickup</span>
+          <div class="phase-dot ml-2" style="background:#f59e0b"></div><span>Review</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Row + Unlinked Banner -->
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <div class="text-sm text-[#8b949e]" id="stats-summary">
+        <span id="stat-total" class="font-semibold text-[#e6edf3]">12</span> MRs &nbsp;•&nbsp;
+        <span id="stat-merged" class="font-semibold text-[#e6edf3]">9</span> merged &nbsp;•&nbsp;
+        <span id="stat-open" class="font-semibold text-[#e6edf3]">1</span> open &nbsp;•&nbsp;
+        <span id="stat-unlinked" class="font-semibold text-amber-400">3</span> unlinked
+      </div>
+      <div id="unlinked-banner" class="unlinked-banner ml-auto" onclick="toggleUnlinkedHighlight()">
+        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400 flex-shrink-0"></i>
+        <span class="text-sm font-medium text-amber-300"><span id="unlinked-count">3</span> need ticket links</span>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-amber-400/60 ml-1"></i>
+      </div>
+    </div>
+
+    <!-- MR Table -->
+    <div class="bg-[#161b22] border border-[#21262d] rounded-lg overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="mr-table" id="mr-table">
+          <thead>
+            <tr>
+              <th style="min-width:280px">Merge Request</th>
+              <th style="min-width:120px">Author</th>
+              <th style="min-width:100px">Size</th>
+              <th style="min-width:200px">Cycle Time</th>
+              <th style="min-width:130px">Ticket</th>
+              <th style="min-width:80px">Status</th>
+              <th style="min-width:110px">Date</th>
+            </tr>
+          </thead>
+          <tbody id="mr-tbody">
+            <!-- Rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /view-mr-list -->
+
+
+  <!-- ===================== VIEW: TEAM HEALTH ===================== -->
+  <div id="view-team-health" class="view p-6">
+    <div class="mb-6">
+      <h1 class="text-xl font-semibold text-[#e6edf3]">Team Health</h1>
+      <p class="text-sm text-[#8b949e] mt-0.5">Working agreement status — last 4 weeks</p>
+    </div>
+
+    <!-- Team stat cards -->
+    <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="stat-card">
+        <div class="text-xs text-[#8b949e] uppercase tracking-wider font-semibold mb-3">MR Throughput / week</div>
+        <div class="flex gap-4">
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="avatar" style="background:rgba(99,102,241,0.2);color:#a5b4fc">SA</div>
+              <span class="text-xs text-[#8b949e]">Sebastian</span>
+            </div>
+            <span class="text-2xl font-bold text-[#e6edf3]">19.3</span>
+            <span class="text-xs text-emerald-400 mt-0.5">↑ 12% vs last month</span>
+          </div>
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="avatar" style="background:rgba(16,185,129,0.2);color:#10b981">JR</div>
+              <span class="text-xs text-[#8b949e]">Jan</span>
+            </div>
+            <span class="text-2xl font-bold text-[#e6edf3]">5.5</span>
+            <span class="text-xs text-[#8b949e] mt-0.5">Stable</span>
+          </div>
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="avatar" style="background:rgba(245,158,11,0.2);color:#f59e0b">OU</div>
+              <span class="text-xs text-[#8b949e]">Onur</span>
+            </div>
+            <span class="text-2xl font-bold text-[#e6edf3]">3.6</span>
+            <span class="text-xs text-amber-400 mt-0.5">↓ Large MR sizes</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="text-xs text-[#8b949e] uppercase tracking-wider font-semibold mb-3">Median MR Size</div>
+        <div class="space-y-3">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-[#8b949e]">Sebastian</span>
+              <span class="text-sm font-semibold text-emerald-400">70 lines</span>
+            </div>
+            <div class="h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500 rounded-full" style="width:13%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-[#8b949e]">Jan</span>
+              <span class="text-sm font-semibold text-emerald-400">71 lines</span>
+            </div>
+            <div class="h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500 rounded-full" style="width:13%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-[#8b949e]">Onur</span>
+              <span class="text-sm font-semibold text-amber-400">~620 lines avg</span>
+            </div>
+            <div class="h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+              <div class="h-full bg-amber-500 rounded-full" style="width:100%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="text-xs text-[#8b949e] uppercase tracking-wider font-semibold mb-3">Rework Rate</div>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="avatar" style="background:rgba(99,102,241,0.2);color:#a5b4fc;width:20px;height:20px;font-size:8px">SA</div>
+              <span class="text-xs text-[#8b949e]">Sebastian</span>
+            </div>
+            <span class="text-sm font-semibold text-emerald-400">7%</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="avatar" style="background:rgba(16,185,129,0.2);color:#10b981;width:20px;height:20px;font-size:8px">JR</div>
+              <span class="text-xs text-[#8b949e]">Jan</span>
+            </div>
+            <span class="text-sm font-semibold text-emerald-400">9%</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="avatar" style="background:rgba(245,158,11,0.2);color:#f59e0b;width:20px;height:20px;font-size:8px">OU</div>
+              <span class="text-xs text-[#8b949e]">Onur</span>
+            </div>
+            <span class="text-sm font-semibold text-amber-400">20%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini cycle time chart -->
+    <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-5">
+      <div class="text-sm font-semibold text-[#e6edf3] mb-4">Team Cycle Time — Last 4 Weeks</div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="healthCycleChart"></canvas>
+      </div>
+    </div>
+  </div><!-- /view-team-health -->
+
+
+  <!-- ===================== VIEW: FEEDBACK THEMES ===================== -->
+  <div id="view-feedback-themes" class="view p-6">
+    <div class="mb-6">
+      <h1 class="text-xl font-semibold text-[#e6edf3]">Feedback Themes</h1>
+      <p class="text-sm text-[#8b949e] mt-0.5">AI-categorized review comment patterns — last 4 weeks</p>
+    </div>
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="stat-card text-center">
+        <div class="text-3xl font-bold text-[#e6edf3]">47</div>
+        <div class="text-xs text-[#8b949e] mt-1">Total review comments</div>
+      </div>
+      <div class="stat-card text-center">
+        <div class="text-3xl font-bold text-amber-400">38%</div>
+        <div class="text-xs text-[#8b949e] mt-1">Architecture category share</div>
+      </div>
+    </div>
+    <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-5">
+      <div class="text-sm font-semibold text-[#e6edf3] mb-4">Comment Categories Distribution</div>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="feedbackChart"></canvas>
+      </div>
+    </div>
+  </div><!-- /view-feedback-themes -->
+
+
+  <!-- ===================== VIEW: TRENDS ===================== -->
+  <div id="view-trends" class="view p-6">
+    <div class="mb-6">
+      <h1 class="text-xl font-semibold text-[#e6edf3]">Trends</h1>
+      <p class="text-sm text-[#8b949e] mt-0.5">Cycle time trends by phase — 2-week buckets</p>
+    </div>
+    <div class="bg-[#161b22] border border-[#21262d] rounded-lg p-5 mb-4">
+      <div class="text-sm font-semibold text-[#e6edf3] mb-4">Cycle Time Phases Over Time</div>
+      <div class="chart-wrap" style="height:280px">
+        <canvas id="trendsChart"></canvas>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-4">
+      <div class="stat-card">
+        <div class="text-xs text-[#8b949e] uppercase tracking-wider font-semibold mb-2">Median Coding</div>
+        <div class="text-2xl font-bold text-[#4f8cc9]">3.2h</div>
+        <div class="text-xs text-emerald-400 mt-1">↓ 18% vs 4 weeks ago</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-xs text-[#8b949e] uppercase tracking-wider font-semibold mb-2">Median Pickup</div>
+        <div class="text-2xl font-bold text-[#a78bfa]">1.4h</div>
+        <div class="text-xs text-[#8b949e] mt-1">Stable</div>
+      </div>
+      <div class="stat-card">
+        <div class="text-xs text-[#8b949e] uppercase tracking-wider font-semibold mb-2">Median Review</div>
+        <div class="text-2xl font-bold text-amber-400">8.7h</div>
+        <div class="text-xs text-amber-400 mt-1">↑ 24% — 2 large MRs</div>
+      </div>
+    </div>
+  </div><!-- /view-trends -->
+
+</div><!-- /main-content -->
+
+
+<!-- ===================== DETAIL PANEL ===================== -->
+<div id="detail-backdrop" onclick="closeDetailPanel()"></div>
+<aside id="detail-panel">
+  <div class="flex items-center justify-between px-5 py-4 border-b border-[#21262d] flex-shrink-0">
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="text-xs font-mono text-[#8b949e] bg-[#21262d] px-2 py-0.5 rounded flex-shrink-0">!237</span>
+      <span id="dp-title" class="text-sm font-semibold text-[#e6edf3] truncate"></span>
+    </div>
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <a href="#" class="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+        <i data-lucide="external-link" class="w-4 h-4"></i>
+      </a>
+      <button onclick="closeDetailPanel()" class="text-[#8b949e] hover:text-[#e6edf3] transition-colors p-1">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </div>
+  <div id="detail-panel-scroll">
+    <!-- Content injected by JS -->
+  </div>
+</aside>
+
+
+<script>
+// ─────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────
+const TEAM_MEMBERS = {
+  sebastian: { name: 'Sebastian Aretz', role: 'Senior / Tech Lead', initials: 'SA', color: '#6366f1', stats: { mrsPerWeek: 19.3, medianSize: 70, reworkRate: 0.07 }},
+  jan:       { name: 'Jan Reiners',     role: 'Mid-level',          initials: 'JR', color: '#10b981', stats: { mrsPerWeek: 5.5,  medianSize: 71, reworkRate: 0.09 }},
+  onur:      { name: 'Onur Ulusoy',     role: 'Mid-level',          initials: 'OU', color: '#f59e0b', stats: { mrsPerWeek: 3.6,  medianSize: 45, reworkRate: 0.20 }}
+};
+
+const TICKET_SUGGESTIONS = [
+  { key: 'DISC-451', title: 'Implement session persistence layer',    sp: 5, status: 'In Progress' },
+  { key: 'DISC-449', title: 'Add Redis caching for API responses',    sp: 3, status: 'In Progress' },
+  { key: 'DISC-447', title: 'User preference storage',               sp: 2, status: 'To Do'       },
+  { key: 'DISC-444', title: 'Fix checkout calculation issues',        sp: 1, status: 'In Progress' },
+  { key: 'DISC-440', title: 'Monitoring and observability improvements', sp: 3, status: 'Done'    }
+];
+
+const statusColor = { 'In Progress': '#10b981', 'To Do': '#8b949e', 'Done': '#a78bfa' };
+
+// MR data — ticket is null means unlinked
+const MRS_RAW = [
+  { id:1,  title:'feat: Add payment processing webhook handler',    author:'jan',      authorName:'Jan',      lines:234,  sizeKey:'inzone',    coding:4,   pickup:0.5,  review:1.1,  ticket:'DISC-445',  manual:false, status:'merged', date:'2 days ago'  },
+  { id:2,  title:'feat: Implement user session caching layer',      author:'onur',     authorName:'Onur',     lines:847,  sizeKey:'oversized', coding:18,  pickup:12,   review:68,   ticket:null,        manual:false, status:'open',   date:'31h ago'     },
+  { id:3,  title:'chore: Update Datadog monitors for checkout',     author:'sebastian',authorName:'Sebastian',lines:45,   sizeKey:'small',     coding:0.5, pickup:0.1,  review:0.1,  ticket:'DISC-432',  manual:false, status:'merged', date:'1 day ago'   },
+  { id:4,  title:'refactor: Extract order service business logic',  author:'sebastian',authorName:'Sebastian',lines:312,  sizeKey:'inzone',    coding:2,   pickup:0.2,  review:1.2,  ticket:'DISC-441',  manual:false, status:'merged', date:'3 days ago'  },
+  { id:5,  title:'fix: Resolve race condition in auth middleware',  author:'sebastian',authorName:'Sebastian',lines:112,  sizeKey:'inzone',    coding:1,   pickup:0.3,  review:0.8,  ticket:'DISC-448',  manual:false, status:'merged', date:'6h ago'      },
+  { id:6,  title:'feat: Add inventory availability check endpoint', author:'onur',     authorName:'Onur',     lines:623,  sizeKey:'oversized', coding:24,  pickup:8,    review:42,   ticket:'DISC-389',  manual:true,  status:'merged', date:'5 days ago'  },
+  { id:7,  title:'feat: Implement product recommendations API',     author:'jan',      authorName:'Jan',      lines:445,  sizeKey:'inzone',    coding:6,   pickup:1.2,  review:3.1,  ticket:'DISC-401',  manual:false, status:'merged', date:'4 days ago'  },
+  { id:8,  title:'chore: Add flyway migration for user preferences',author:'onur',     authorName:'Onur',     lines:28,   sizeKey:'small',     coding:2,   pickup:0.5,  review:1.5,  ticket:null,        manual:false, status:'merged', date:'3 days ago'  },
+  { id:9,  title:'feat: Add search result caching with Redis',      author:'sebastian',authorName:'Sebastian',lines:189,  sizeKey:'inzone',    coding:1.5, pickup:0.1,  review:0.4,  ticket:'DISC-429',  manual:false, status:'merged', date:'2 days ago'  },
+  { id:10, title:'fix: Handle null pointer in cart calculation',    author:'jan',      authorName:'Jan',      lines:34,   sizeKey:'small',     coding:0.5, pickup:0.2,  review:0.3,  ticket:null,        manual:false, status:'merged', date:'1 day ago'   },
+  { id:11, title:'feat: Customer loyalty points integration',       author:'onur',     authorName:'Onur',     lines:1240, sizeKey:'oversized', coding:48,  pickup:24,   review:96,   ticket:'DISC-312',  manual:true,  status:'merged', date:'8 days ago', note:'closed+replaced' },
+  { id:12, title:'refactor: Consolidate shipping provider adapters',author:'sebastian',authorName:'Sebastian',lines:567,  sizeKey:'oversized', coding:3,   pickup:0.3,  review:2.1,  ticket:'DISC-438',  manual:false, status:'merged', date:'7 days ago'  }
+];
+
+// Mutable state — track ticket links
+let mrState = MRS_RAW.map(mr => ({ ...mr }));
+let highlightUnlinked = false;
+let selectedMrId = null;
+let activePopover = null;
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function fmtHours(h) {
+  if (h < 1) return (h * 60).toFixed(0) + 'm';
+  if (h >= 24) return (h / 24).toFixed(1) + 'd';
+  return h + 'h';
+}
+
+function totalHours(mr) { return mr.coding + mr.pickup + mr.review; }
+
+function sizeLabel(key) {
+  if (key === 'small')     return 'Small';
+  if (key === 'inzone')    return 'In Zone';
+  if (key === 'oversized') return 'Oversized';
+  return key;
+}
+
+function sizeClass(key) {
+  if (key === 'small')     return 'size-small';
+  if (key === 'inzone')    return 'size-inzone';
+  if (key === 'oversized') return 'size-oversized';
+  return '';
+}
+
+function memberForAuthor(author) { return TEAM_MEMBERS[author] || TEAM_MEMBERS.sebastian; }
+
+function avatarHtml(author, size = 26) {
+  const m = memberForAuthor(author);
+  return `<div class="avatar" style="background:${m.color}22;color:${m.color};width:${size}px;height:${size}px">${m.initials}</div>`;
+}
+
+function statusBadgeHtml(status) {
+  const cls = { merged:'status-merged', open:'status-open', draft:'status-draft' }[status] || 'status-draft';
+  const icons = { merged:'git-merge', open:'git-pull-request', draft:'file-text' };
+  const icon = icons[status] || 'circle';
+  return `<span class="status-badge ${cls}"><i data-lucide="${icon}" style="width:10px;height:10px"></i> ${status}</span>`;
+}
+
+// Build cycle time bar (table row version)
+function cycleBarHtml(mr) {
+  const total = totalHours(mr);
+  const pct = v => ((v / total) * 100).toFixed(1);
+  const codingPct = pct(mr.coding);
+  const pickupPct = pct(mr.pickup);
+  const reviewPct = pct(mr.review);
+  const totalLabel = fmtHours(total);
+
+  return `
+    <div class="cycle-bar-container tooltip-wrap">
+      <div class="tt">Coding ${fmtHours(mr.coding)} · Pickup ${fmtHours(mr.pickup)} · Review ${fmtHours(mr.review)}</div>
+      <div class="cycle-bar">
+        <div class="cycle-segment seg-coding" style="width:${codingPct}%" title="Coding: ${fmtHours(mr.coding)}"></div>
+        <div class="cycle-segment seg-pickup" style="width:${pickupPct}%" title="Pickup: ${fmtHours(mr.pickup)}"></div>
+        <div class="cycle-segment seg-review" style="width:${reviewPct}%" title="Review: ${fmtHours(mr.review)}"></div>
+      </div>
+      <span class="cycle-total">${totalLabel}</span>
+    </div>`;
+}
+
+// Ticket cell
+function ticketCellHtml(mr) {
+  if (mr.ticket) {
+    const manualNote = mr.manual
+      ? ` <span class="text-[10px] text-[#8b949e] ml-0.5" title="Manually linked">✎</span>`
+      : '';
+    const extra = mr.note ? `<span class="text-[10px] text-[#8b949e] ml-1">(${mr.note})</span>` : '';
+    return `<div class="flex items-center gap-1">
+      <span class="ticket-chip ${mr.manual ? 'manually-linked' : ''}">
+        <i data-lucide="link" style="width:10px;height:10px"></i>
+        ${mr.ticket}
+      </span>${manualNote}${extra}</div>`;
+  } else {
+    return `<div class="relative" id="ticket-cell-${mr.id}">
+      <button class="link-btn" onclick="openTicketPopover(event, ${mr.id})">
+        <i data-lucide="link-2" style="width:11px;height:11px"></i>
+        Link ticket
+      </button>
+    </div>`;
+  }
+}
+
+// ─────────────────────────────────────────────
+// FILTER + RENDER TABLE
+// ─────────────────────────────────────────────
+function getFilteredMRs() {
+  const size   = document.getElementById('filter-size').value;
+  const author = document.getElementById('filter-author').value;
+  const link   = document.getElementById('filter-link').value;
+
+  return mrState.filter(mr => {
+    if (size !== 'all' && mr.sizeKey !== size) return false;
+    if (author !== 'all' && mr.authorName !== author) return false;
+    if (link === 'linked'   && !mr.ticket) return false;
+    if (link === 'unlinked' && mr.ticket)  return false;
+    return true;
+  });
+}
+
+function applyFilters() {
+  const filtered = getFilteredMRs();
+  renderTable(filtered);
+  updateStats(filtered);
+}
+
+function updateStats(filtered) {
+  const merged   = filtered.filter(m => m.status === 'merged').length;
+  const open     = filtered.filter(m => m.status === 'open').length;
+  const unlinked = filtered.filter(m => !m.ticket).length;
+
+  document.getElementById('stat-total').textContent    = filtered.length;
+  document.getElementById('stat-merged').textContent   = merged;
+  document.getElementById('stat-open').textContent     = open;
+  document.getElementById('stat-unlinked').textContent = unlinked;
+  document.getElementById('unlinked-count').textContent = unlinked;
+
+  const banner = document.getElementById('unlinked-banner');
+  if (unlinked === 0) {
+    banner.style.display = 'none';
+  } else {
+    banner.style.display = 'flex';
+  }
+}
+
+function renderTable(filtered) {
+  const tbody = document.getElementById('mr-tbody');
+  tbody.innerHTML = '';
+
+  filtered.forEach(mr => {
+    const m = memberForAuthor(mr.author);
+    const isUnlinked = !mr.ticket;
+    const isSelected = mr.id === selectedMrId;
+
+    const tr = document.createElement('tr');
+    tr.id = `mr-row-${mr.id}`;
+    if (isUnlinked && highlightUnlinked) tr.classList.add('unlinked-highlight');
+    if (isSelected) tr.classList.add('mr-row-selected');
+
+    tr.innerHTML = `
+      <td>
+        <div class="flex items-center gap-2">
+          <div class="min-w-0">
+            <button onclick="openDetailPanel(${mr.id})" class="text-sm font-medium text-[#e6edf3] hover:text-[#58a6ff] transition-colors text-left truncate max-w-[280px] block">${mr.title}</button>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="flex items-center gap-2">
+          ${avatarHtml(mr.author)}
+          <span class="text-sm text-[#8b949e]">${m.name.split(' ')[0]}</span>
+        </div>
+      </td>
+      <td>
+        <span class="size-badge ${sizeClass(mr.sizeKey)}">${mr.lines}L</span>
+      </td>
+      <td>${cycleBarHtml(mr)}</td>
+      <td id="ticket-td-${mr.id}">${ticketCellHtml(mr)}</td>
+      <td>${statusBadgeHtml(mr.status)}</td>
+      <td class="text-xs text-[#8b949e] whitespace-nowrap">${mr.date}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  lucide.createIcons();
+}
+
+function toggleUnlinkedHighlight() {
+  highlightUnlinked = !highlightUnlinked;
+  applyFilters();
+}
+
+// ─────────────────────────────────────────────
+// INLINE TICKET POPOVER
+// ─────────────────────────────────────────────
+function openTicketPopover(event, mrId) {
+  event.stopPropagation();
+  closeActivePopover();
+
+  const cell = document.getElementById(`ticket-cell-${mrId}`);
+  if (!cell) return;
+
+  const pop = document.createElement('div');
+  pop.className = 'ticket-popover';
+  pop.id = `popover-${mrId}`;
+  pop.innerHTML = buildPopoverHTML(mrId);
+  cell.appendChild(pop);
+  activePopover = { id: mrId, el: pop };
+
+  lucide.createIcons();
+  const inp = pop.querySelector('input');
+  if (inp) { inp.focus(); inp.addEventListener('input', () => filterPopover(mrId, inp.value)); }
+
+  // Position so it doesn't clip
+  const rect = cell.getBoundingClientRect();
+  if (rect.bottom + 200 > window.innerHeight) {
+    pop.style.bottom = '100%';
+    pop.style.top = 'auto';
+    pop.style.marginBottom = '4px';
+  } else {
+    pop.style.top = '100%';
+    pop.style.marginTop = '4px';
+  }
+
+  setTimeout(() => { document.addEventListener('click', closeActivePopover, { once: true }); }, 10);
+}
+
+function buildPopoverHTML(mrId, filter = '') {
+  const suggestions = filter.length
+    ? TICKET_SUGGESTIONS.filter(t =>
+        t.key.toLowerCase().includes(filter.toLowerCase()) ||
+        t.title.toLowerCase().includes(filter.toLowerCase()))
+    : TICKET_SUGGESTIONS;
+
+  let opts = suggestions.map(t => `
+    <div class="ticket-option" onclick="linkTicket(${mrId}, '${t.key}', event)">
+      <div class="ticket-status-dot" style="background:${statusColor[t.status] || '#8b949e'}"></div>
+      <span class="ticket-key">${t.key}</span>
+      <span class="ticket-title">${t.title}</span>
+      <span class="ticket-meta">${t.sp}SP · ${t.status}</span>
+    </div>`).join('');
+
+  if (!opts) opts = `<div class="px-3 py-3 text-xs text-[#8b949e]">No tickets found</div>`;
+
+  return `
+    <div class="px-2 pb-2 pt-2">
+      <input type="text" placeholder="Search DISC tickets…" value="${filter}" class="text-xs" style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:6px 10px;font-size:12px;color:#e6edf3;outline:none;" />
+    </div>
+    <div class="border-t border-[#21262d] py-1">${opts}</div>`;
+}
+
+function filterPopover(mrId, value) {
+  const pop = document.getElementById(`popover-${mrId}`);
+  if (!pop) return;
+  pop.innerHTML = buildPopoverHTML(mrId, value);
+  lucide.createIcons();
+  const inp = pop.querySelector('input');
+  if (inp) {
+    inp.focus();
+    inp.setSelectionRange(value.length, value.length);
+    inp.addEventListener('input', () => filterPopover(mrId, inp.value));
+  }
+}
+
+function linkTicket(mrId, ticketKey, event) {
+  event.stopPropagation();
+  const mr = mrState.find(m => m.id === mrId);
+  if (!mr) return;
+  mr.ticket = ticketKey;
+  mr.manual = true;
+  closeActivePopover();
+  applyFilters();
+
+  // Update detail panel if open
+  if (selectedMrId === mrId) openDetailPanel(mrId);
+}
+
+function closeActivePopover() {
+  if (activePopover) {
+    const el = document.getElementById(`popover-${activePopover.id}`);
+    if (el) el.remove();
+    activePopover = null;
+  }
+  document.removeEventListener('click', closeActivePopover);
+}
+
+// ─────────────────────────────────────────────
+// DETAIL PANEL
+// ─────────────────────────────────────────────
+function openDetailPanel(mrId) {
+  const mr = mrState.find(m => m.id === mrId);
+  if (!mr) return;
+  selectedMrId = mrId;
+
+  document.getElementById('dp-title').textContent = mr.title;
+
+  const scroll = document.getElementById('detail-panel-scroll');
+  scroll.innerHTML = buildDetailHTML(mr);
+
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('detail-backdrop').classList.add('open');
+
+  lucide.createIcons();
+  renderDetailGantt(mr);
+
+  // Re-highlight selected row
+  document.querySelectorAll('.mr-row-selected').forEach(r => r.classList.remove('mr-row-selected'));
+  const row = document.getElementById(`mr-row-${mrId}`);
+  if (row) row.classList.add('mr-row-selected');
+}
+
+function closeDetailPanel() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('detail-backdrop').classList.remove('open');
+  document.querySelectorAll('.mr-row-selected').forEach(r => r.classList.remove('mr-row-selected'));
+  selectedMrId = null;
+}
+
+function buildDetailHTML(mr) {
+  const m = memberForAuthor(mr.author);
+  const total = totalHours(mr);
+  const pct = v => ((v / total) * 100).toFixed(2);
+  const isOnur = mr.author === 'onur';
+
+  const ticketSection = mr.ticket
+    ? `<div class="flex items-center gap-2">
+        <span class="ticket-chip ${mr.manual ? 'manually-linked' : ''}">
+          <i data-lucide="link" style="width:11px;height:11px"></i>
+          ${mr.ticket}
+        </span>
+        ${mr.manual ? '<span class="text-xs text-[#8b949e]">✎ manually linked</span>' : ''}
+       </div>`
+    : `<div class="p-3 rounded-lg mb-2" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3)">
+        <div class="flex items-center gap-2 mb-2">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
+          <span class="text-sm font-medium text-amber-300">No ticket linked</span>
+        </div>
+        <div class="relative" id="ticket-cell-${mr.id}">
+          <button class="link-btn" onclick="openTicketPopover(event, ${mr.id})">
+            <i data-lucide="link-2" style="width:11px;height:11px"></i>
+            Link ticket
+          </button>
+        </div>
+       </div>`;
+
+  const aiInsight = isOnur
+    ? `<div class="ai-insight mt-5">
+        <div class="flex items-start gap-2">
+          <i data-lucide="sparkles" class="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0"></i>
+          <div>
+            <div class="text-xs font-semibold text-violet-300 mb-1">AI Pattern Insight</div>
+            <p class="text-xs text-[#c9d1d9] leading-relaxed">
+              This MR follows a recurring pattern in Onur's larger features — the Pickup phase accounts for
+              <strong class="text-violet-300">12% of cycle time</strong> (vs team average of 4%), suggesting
+              the MR may benefit from earlier review requests or task breakdown before opening.
+              Review phase duration of ${fmtHours(mr.review)} is ${((mr.review / total) * 100).toFixed(0)}% of total cycle time.
+            </p>
+          </div>
+        </div>
+       </div>`
+    : `<div class="ai-insight mt-5">
+        <div class="flex items-start gap-2">
+          <i data-lucide="sparkles" class="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0"></i>
+          <div>
+            <div class="text-xs font-semibold text-violet-300 mb-1">AI Pattern Insight</div>
+            <p class="text-xs text-[#c9d1d9] leading-relaxed">
+              This MR is within team norms. Pickup phase is fast at ${fmtHours(mr.pickup)}, indicating good reviewer availability.
+              Cycle time breakdown looks healthy.
+            </p>
+          </div>
+        </div>
+       </div>`;
+
+  return `
+    <!-- Author + Status -->
+    <div class="flex items-center gap-3 mb-5">
+      ${avatarHtml(mr.author, 36)}
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-[#e6edf3]">${m.name}</div>
+        <div class="text-xs text-[#8b949e]">${m.role}</div>
+      </div>
+      ${statusBadgeHtml(mr.status)}
+      <span class="text-xs text-[#8b949e]">${mr.date}</span>
+    </div>
+
+    <!-- Cycle Time Breakdown -->
+    <div class="mb-5">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-semibold text-[#8b949e] uppercase tracking-wider">Cycle Time Breakdown</span>
+        <span class="text-sm font-bold text-[#e6edf3]">${fmtHours(total)} total</span>
+      </div>
+
+      <!-- Gantt bar -->
+      <div class="gantt-bar-wrap mb-3" id="detail-gantt-bar">
+        <div class="gantt-seg gantt-coding" id="dg-coding" style="width:${pct(mr.coding)}%">
+          <span>${fmtHours(mr.coding)}</span>
+        </div>
+        <div class="gantt-seg gantt-pickup" id="dg-pickup" style="width:${pct(mr.pickup)}%">
+          <span>${fmtHours(mr.pickup)}</span>
+        </div>
+        <div class="gantt-seg gantt-review" id="dg-review" style="width:${pct(mr.review)}%">
+          <span>${fmtHours(mr.review)}</span>
+        </div>
+      </div>
+
+      <!-- Phase labels -->
+      <div class="grid grid-cols-3 gap-2">
+        <div class="bg-[#0d1117] rounded-md p-3 border border-[#21262d]">
+          <div class="flex items-center gap-1.5 mb-1">
+            <div class="w-2.5 h-2.5 rounded-sm" style="background:#4f8cc9"></div>
+            <span class="text-xs font-medium text-[#8b949e]">Coding</span>
+          </div>
+          <div class="text-xl font-bold text-[#e6edf3]">${fmtHours(mr.coding)}</div>
+          <div class="text-xs text-[#8b949e] mt-0.5">${pct(mr.coding)}% of total</div>
+        </div>
+        <div class="bg-[#0d1117] rounded-md p-3 border border-[#21262d]">
+          <div class="flex items-center gap-1.5 mb-1">
+            <div class="w-2.5 h-2.5 rounded-sm" style="background:#a78bfa"></div>
+            <span class="text-xs font-medium text-[#8b949e]">Pickup</span>
+          </div>
+          <div class="text-xl font-bold text-[#e6edf3]">${fmtHours(mr.pickup)}</div>
+          <div class="text-xs text-[#8b949e] mt-0.5">${pct(mr.pickup)}% of total</div>
+        </div>
+        <div class="bg-[#0d1117] rounded-md p-3 border border-[#21262d]">
+          <div class="flex items-center gap-1.5 mb-1">
+            <div class="w-2.5 h-2.5 rounded-sm" style="background:#f59e0b"></div>
+            <span class="text-xs font-medium text-[#8b949e]">Review</span>
+          </div>
+          <div class="text-xl font-bold text-[#e6edf3]">${fmtHours(mr.review)}</div>
+          <div class="text-xs text-[#8b949e] mt-0.5">${pct(mr.review)}% of total</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="grid grid-cols-4 gap-2 mb-5">
+      <div class="bg-[#0d1117] border border-[#21262d] rounded-md p-3 text-center">
+        <div class="text-lg font-bold text-[#e6edf3]">${mr.lines}</div>
+        <div class="text-[11px] text-[#8b949e] mt-0.5">lines changed</div>
+      </div>
+      <div class="bg-[#0d1117] border border-[#21262d] rounded-md p-3 text-center">
+        <div class="text-lg font-bold text-[#e6edf3]">6</div>
+        <div class="text-[11px] text-[#8b949e] mt-0.5">files</div>
+      </div>
+      <div class="bg-[#0d1117] border border-[#21262d] rounded-md p-3 text-center">
+        <div class="text-lg font-bold text-[#e6edf3]">3</div>
+        <div class="text-[11px] text-[#8b949e] mt-0.5">review rounds</div>
+      </div>
+      <div class="bg-[#0d1117] border border-[#21262d] rounded-md p-3 text-center">
+        <div class="text-lg font-bold text-[#e6edf3]">4</div>
+        <div class="text-[11px] text-[#8b949e] mt-0.5">comments</div>
+      </div>
+    </div>
+
+    <!-- Ticket Link -->
+    <div class="mb-5">
+      <div class="text-xs font-semibold text-[#8b949e] uppercase tracking-wider mb-2">Linked Ticket</div>
+      ${ticketSection}
+    </div>
+
+    <!-- Size indicator -->
+    <div class="mb-5 p-3 rounded-lg bg-[#0d1117] border border-[#21262d]">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-xs text-[#8b949e]">MR Size</span>
+        <span class="size-badge ${sizeClass(mr.sizeKey)}">${sizeLabel(mr.sizeKey)} · ${mr.lines} lines</span>
+      </div>
+      <div class="h-1.5 bg-[#21262d] rounded-full overflow-hidden mt-2">
+        <div class="h-full rounded-full transition-all" style="width:${Math.min((mr.lines / 1300) * 100, 100)}%; background:${mr.sizeKey === 'inzone' ? '#10b981' : mr.sizeKey === 'oversized' ? '#f59e0b' : '#484f58'}"></div>
+      </div>
+      <div class="flex justify-between text-[10px] text-[#484f58] mt-1">
+        <span>0</span><span>70</span><span>553</span><span>1300+</span>
+      </div>
+    </div>
+
+    <!-- Review thread -->
+    <div class="mb-5">
+      <div class="text-xs font-semibold text-[#8b949e] uppercase tracking-wider mb-3">Review Thread</div>
+      <div class="space-y-2">
+
+        <div class="comment-card">
+          <div class="flex items-start gap-2.5">
+            ${avatarHtml('sebastian', 24)}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                <span class="text-xs font-semibold text-[#e6edf3]">Sebastian Aretz</span>
+                <span class="text-[10px] text-[#8b949e]">reviewer · 3 days ago</span>
+                <span class="comment-tag tag-arch">Architecture</span>
+              </div>
+              <p class="text-xs text-[#c9d1d9] leading-relaxed">This service layer dependency is inverted — the caching logic shouldn't know about the domain model. Consider extracting to an infrastructure layer.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ml-6">
+          <div class="comment-card border-[#30363d]">
+            <div class="flex items-start gap-2.5">
+              ${avatarHtml('onur', 24)}
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-xs font-semibold text-[#e6edf3]">Onur Ulusoy</span>
+                  <span class="text-[10px] text-[#8b949e]">author · 3 days ago</span>
+                </div>
+                <p class="text-xs text-[#c9d1d9]">Done</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="comment-card">
+          <div class="flex items-start gap-2.5">
+            ${avatarHtml('sebastian', 24)}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                <span class="text-xs font-semibold text-[#e6edf3]">Sebastian Aretz</span>
+                <span class="text-[10px] text-[#8b949e]">reviewer · 2 days ago</span>
+                <span class="comment-tag tag-perf">Performance</span>
+              </div>
+              <p class="text-xs text-[#c9d1d9] leading-relaxed">The cache invalidation on write isn't handled — if the session is updated elsewhere, this will serve stale data.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ml-6">
+          <div class="comment-card border-[#30363d]">
+            <div class="flex items-start gap-2.5">
+              ${avatarHtml('onur', 24)}
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-xs font-semibold text-[#e6edf3]">Onur Ulusoy</span>
+                  <span class="text-[10px] text-[#8b949e]">author · 2 days ago</span>
+                </div>
+                <p class="text-xs text-[#c9d1d9]">Done: added cache.invalidate() call</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    ${aiInsight}
+
+    <!-- Bottom padding -->
+    <div class="h-8"></div>
+  `;
+}
+
+function renderDetailGantt(mr) {
+  // Slight animation after render
+  const total = totalHours(mr);
+  const pct = v => ((v / total) * 100).toFixed(2);
+  setTimeout(() => {
+    const c = document.getElementById('dg-coding');
+    const p = document.getElementById('dg-pickup');
+    const r = document.getElementById('dg-review');
+    if (c) c.style.width = pct(mr.coding) + '%';
+    if (p) p.style.width = pct(mr.pickup) + '%';
+    if (r) r.style.width = pct(mr.review) + '%';
+  }, 50);
+}
+
+// ─────────────────────────────────────────────
+// VIEW NAVIGATION
+// ─────────────────────────────────────────────
+let chartsInit = {};
+
+function showView(viewId) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  const map = {
+    'mr-list':        0,
+    'team-health':    1,
+    'feedback-themes':2,
+    'trends':         3
+  };
+  document.getElementById(`view-${viewId}`).classList.add('active');
+  document.querySelectorAll('.nav-item')[map[viewId] || 0].classList.add('active');
+
+  closeDetailPanel();
+
+  if (viewId === 'team-health'     && !chartsInit.health)         { initHealthChart();    chartsInit.health = true; }
+  if (viewId === 'feedback-themes' && !chartsInit.feedback)       { initFeedbackChart();  chartsInit.feedback = true; }
+  if (viewId === 'trends'          && !chartsInit.trends)         { initTrendsChart();    chartsInit.trends = true; }
+}
+
+// ─────────────────────────────────────────────
+// CHARTS
+// ─────────────────────────────────────────────
+const chartDefaults = {
+  plugins: { legend: { labels: { color: '#8b949e', font: { size: 12 } } } },
+  scales: {
+    x: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { color: '#21262d' } },
+    y: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { color: '#21262d' } }
+  }
+};
+
+function initHealthChart() {
+  const ctx = document.getElementById('healthCycleChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+      datasets: [
+        { label: 'Coding',  data: [4.2, 3.8, 3.1, 2.9], backgroundColor: '#4f8cc9', stack: 'a' },
+        { label: 'Pickup',  data: [1.8, 1.2, 0.9, 1.4], backgroundColor: '#a78bfa', stack: 'a' },
+        { label: 'Review',  data: [8.1, 6.4, 5.2, 9.3], backgroundColor: '#f59e0b', stack: 'a' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
+        y: { stacked: true, ticks: { color: '#8b949e' }, grid: { color: '#21262d' } }
+      }
+    }
+  });
+}
+
+function initFeedbackChart() {
+  const ctx = document.getElementById('feedbackChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Architecture', 'Performance', 'Code style', 'Testing', 'Documentation', 'Security'],
+      datasets: [{
+        label: 'Comments',
+        data: [18, 11, 8, 5, 3, 2],
+        backgroundColor: ['#6366f1','#f59e0b','#10b981','#4f8cc9','#a78bfa','#f43f5e'],
+        borderRadius: 4, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
+        y: { ticks: { color: '#e6edf3', font: { size: 12 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function initTrendsChart() {
+  const ctx = document.getElementById('trendsChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Apr 1–14', 'Apr 15–28', 'May 1–14', 'May 15–28', 'Jun 1–14', 'Jun 15–28'],
+      datasets: [
+        {
+          label: 'Coding (h)',
+          data: [5.2, 4.8, 4.1, 3.5, 3.2, 3.0],
+          borderColor: '#4f8cc9', backgroundColor: 'rgba(79,140,201,0.08)',
+          tension: 0.35, fill: true, pointRadius: 4, pointHoverRadius: 6
+        },
+        {
+          label: 'Pickup (h)',
+          data: [2.1, 1.8, 1.6, 1.3, 1.4, 1.2],
+          borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.06)',
+          tension: 0.35, fill: true, pointRadius: 4, pointHoverRadius: 6
+        },
+        {
+          label: 'Review (h)',
+          data: [12.4, 10.1, 8.7, 7.2, 9.3, 8.1],
+          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.06)',
+          tension: 0.35, fill: true, pointRadius: 4, pointHoverRadius: 6
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e', boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { color: '#21262d' } },
+        y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } }
+      },
+      interaction: { mode: 'index', intersect: false }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// KEYBOARD SHORTCUTS
+// ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (activePopover) { closeActivePopover(); return; }
+    if (selectedMrId)  { closeDetailPanel(); return; }
+  }
+});
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  applyFilters();
+});
+</script>
+</body>
+</html>

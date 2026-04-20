@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engineering Analytics — AI-First Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #0f0f13; color: #e2e2ea; height: 100vh; overflow: hidden; display: flex; }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 2px; }
+
+  /* Sidebar */
+  #left-sidebar { width: 240px; min-width: 240px; background: #16161d; border-right: 1px solid #1e1e28; display: flex; flex-direction: column; padding: 0; height: 100vh; }
+  .nav-header { padding: 18px 16px 12px; border-bottom: 1px solid #1e1e28; }
+  .nav-logo { display: flex; align-items: center; gap: 8px; }
+  .logo-mark { width: 26px; height: 26px; background: linear-gradient(135deg, #7c3aed, #4f46e5); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .logo-text { font-size: 13px; font-weight: 600; color: #e2e2ea; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 10px; color: #5a5a6e; font-weight: 400; }
+
+  .nav-section { padding: 10px 10px 6px; }
+  .nav-section-label { font-size: 10px; font-weight: 600; color: #3d3d52; text-transform: uppercase; letter-spacing: 0.8px; padding: 0 6px 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 400; color: #7a7a8c; transition: all 0.12s ease; margin-bottom: 1px; }
+  .nav-item:hover { background: #1e1e28; color: #c8c8d8; }
+  .nav-item.active { background: rgba(99,102,241,0.12); color: #818cf8; font-weight: 500; }
+  .nav-item.active .nav-icon { color: #818cf8; }
+  .nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
+  .nav-badge { margin-left: auto; font-size: 10px; background: rgba(245,158,11,0.15); color: #f59e0b; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+  .nav-badge.violet { background: rgba(124,58,237,0.15); color: #a78bfa; }
+
+  .nav-footer { margin-top: auto; padding: 12px 10px; border-top: 1px solid #1e1e28; }
+  .team-pill { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+  .team-pill:hover { background: #1e1e28; }
+  .team-avatar { width: 24px; height: 24px; background: linear-gradient(135deg, #6366f1, #4f46e5); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; }
+  .team-info { font-size: 12px; color: #9999aa; }
+  .team-name { font-size: 12px; font-weight: 500; color: #c8c8d8; }
+
+  /* Main */
+  #main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; overflow: hidden; }
+  .topbar { height: 50px; border-bottom: 1px solid #1e1e28; display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; }
+  .topbar-title { font-size: 14px; font-weight: 600; color: #e2e2ea; }
+  .topbar-sub { font-size: 12px; color: #5a5a6e; }
+  .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all 0.12s; font-family: inherit; }
+  .btn-ghost { background: transparent; color: #7a7a8c; border: 1px solid #2a2a35; }
+  .btn-ghost:hover { background: #1e1e28; color: #c8c8d8; border-color: #3a3a48; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover { background: #5558e8; }
+  .btn-violet { background: rgba(124,58,237,0.12); color: #a78bfa; border: 1px solid rgba(124,58,237,0.25); }
+  .btn-violet:hover { background: rgba(124,58,237,0.2); }
+
+  .main-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* AI Panel */
+  #ai-panel { width: 320px; min-width: 320px; background: #16161d; border-left: 1px solid #1e1e28; display: flex; flex-direction: column; height: 100vh; transition: all 0.2s ease; }
+  #ai-panel.collapsed { width: 0; min-width: 0; overflow: hidden; }
+  .ai-header { padding: 14px 16px; border-bottom: 1px solid #1e1e28; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ai-title { font-size: 12px; font-weight: 600; color: #a78bfa; display: flex; align-items: center; gap: 6px; }
+  .ai-mode-toggle { margin-left: auto; display: flex; gap: 2px; background: #0f0f13; padding: 2px; border-radius: 7px; }
+  .ai-mode-btn { padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 500; cursor: pointer; color: #5a5a6e; border: none; background: transparent; transition: all 0.12s; font-family: inherit; }
+  .ai-mode-btn.active { background: #1e1e28; color: #a78bfa; }
+  .ai-panel-body { flex: 1; overflow-y: auto; padding: 14px; }
+
+  /* AI Insights */
+  .ai-insight { margin-bottom: 14px; padding: 12px; border-radius: 9px; border: 1px solid rgba(124,58,237,0.15); background: rgba(124,58,237,0.04); }
+  .ai-insight-header { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #a78bfa; margin-bottom: 6px; }
+  .ai-insight-spark { width: 14px; height: 14px; color: #7c3aed; flex-shrink: 0; }
+  .ai-insight-body { font-size: 12px; color: #9999aa; line-height: 1.6; }
+  .ai-insight-body strong { color: #c8c8d8; font-weight: 500; }
+  .ai-insight.alert { border-color: rgba(245,158,11,0.2); background: rgba(245,158,11,0.04); }
+  .ai-insight.alert .ai-insight-header { color: #f59e0b; }
+  .ai-insight.warn { border-color: rgba(249,115,22,0.2); background: rgba(249,115,22,0.03); }
+  .ai-insight.warn .ai-insight-header { color: #fb923c; }
+
+  /* Chat */
+  .chat-messages { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+  .chat-bubble { padding: 10px 12px; border-radius: 9px; font-size: 12px; line-height: 1.6; max-width: 100%; }
+  .chat-bubble.user { background: #1e1e28; color: #c8c8d8; border: 1px solid #2a2a35; align-self: flex-end; max-width: 85%; }
+  .chat-bubble.ai { background: rgba(79,70,229,0.1); border: 1px solid rgba(79,70,229,0.2); color: #c8c8d8; }
+  .chat-bubble.ai .ai-name { font-size: 10px; color: #818cf8; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
+  .suggested-questions { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .sq-btn { padding: 7px 10px; border-radius: 7px; font-size: 11px; font-weight: 400; color: #9999aa; background: #1a1a24; border: 1px solid #2a2a35; cursor: pointer; text-align: left; transition: all 0.12s; font-family: inherit; }
+  .sq-btn:hover { background: #1e1e28; color: #c8c8d8; border-color: rgba(124,58,237,0.3); }
+  .chat-input-area { padding: 10px; border-top: 1px solid #1e1e28; flex-shrink: 0; }
+  .chat-input-wrap { display: flex; gap: 6px; background: #1a1a24; border: 1px solid #2a2a35; border-radius: 8px; padding: 6px 8px; transition: border-color 0.12s; }
+  .chat-input-wrap:focus-within { border-color: rgba(124,58,237,0.4); }
+  .chat-input { flex: 1; background: transparent; border: none; outline: none; font-size: 12px; color: #c8c8d8; font-family: inherit; resize: none; }
+  .chat-input::placeholder { color: #3d3d52; }
+  .chat-send-btn { padding: 4px 8px; background: rgba(99,102,241,0.2); border: none; border-radius: 5px; color: #818cf8; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.12s; }
+  .chat-send-btn:hover { background: rgba(99,102,241,0.35); }
+
+  /* Cards */
+  .metric-card { background: #16161d; border: 1px solid #1e1e28; border-radius: 10px; padding: 14px 16px; }
+  .metric-card:hover { border-color: #2a2a35; }
+  .metric-label { font-size: 11px; color: #5a5a6e; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .metric-value { font-size: 22px; font-weight: 700; color: #e2e2ea; letter-spacing: -0.5px; line-height: 1; }
+  .metric-delta { font-size: 11px; color: #7a7a8c; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+  .metric-delta .down { color: #6ee7b7; }
+  .metric-delta .up { color: #c8c8d8; }
+  .metric-delta .stable { color: #7a7a8c; }
+  .metric-delta .warn { color: #f59e0b; }
+
+  /* Chart containers */
+  .chart-wrap { background: #16161d; border: 1px solid #1e1e28; border-radius: 10px; padding: 14px 16px; }
+  .chart-title { font-size: 12px; font-weight: 600; color: #9999aa; margin-bottom: 3px; }
+  .chart-sub { font-size: 11px; color: #3d3d52; margin-bottom: 12px; }
+
+  /* Engineer cards */
+  .engineer-card { background: #16161d; border: 1px solid #1e1e28; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .engineer-card:hover { border-color: #2a2a35; }
+  .eng-header { display: flex; align-items: center; gap: 10px; }
+  .eng-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
+  .eng-name { font-size: 13px; font-weight: 600; color: #e2e2ea; }
+  .eng-role { font-size: 11px; color: #5a5a6e; }
+  .eng-health { margin-left: auto; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .health-excellent { background: rgba(99,102,241,0.12); color: #818cf8; }
+  .health-good { background: rgba(34,211,238,0.10); color: #67e8f9; }
+  .health-developing { background: rgba(245,158,11,0.12); color: #f59e0b; }
+  .eng-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .eng-stat { text-align: center; }
+  .eng-stat-value { font-size: 14px; font-weight: 600; color: #c8c8d8; line-height: 1; }
+  .eng-stat-label { font-size: 10px; color: #3d3d52; margin-top: 2px; }
+
+  /* MR list */
+  .mr-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1a1a24; cursor: pointer; transition: background 0.1s; }
+  .mr-row:hover { background: rgba(255,255,255,0.02); }
+  .mr-row:last-child { border-bottom: none; }
+  .mr-author-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .mr-title { font-size: 12px; font-weight: 500; color: #c8c8d8; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mr-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-size: 11px; color: #5a5a6e; }
+  .mr-badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .badge-clean { background: rgba(99,102,241,0.1); color: #818cf8; }
+  .badge-warn { background: rgba(245,158,11,0.1); color: #f59e0b; }
+  .badge-unlinked { background: rgba(249,115,22,0.1); color: #fb923c; }
+  .badge-noticket { background: rgba(239,68,68,0.1); color: #f87171; }
+  .ticket-pill { background: #1a1a24; border: 1px solid #2a2a35; border-radius: 4px; padding: 1px 5px; font-size: 10px; font-weight: 500; color: #5a5a6e; white-space: nowrap; }
+
+  /* Feedback */
+  .feedback-comment { background: #16161d; border: 1px solid #1e1e28; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .feedback-comment:hover { border-color: #2a2a35; }
+  .fc-text { font-size: 12px; color: #9999aa; line-height: 1.5; margin-bottom: 8px; }
+  .fc-meta { display: flex; align-items: center; gap: 8px; }
+  .fc-badge { padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .fc-badge-regex { background: rgba(99,102,241,0.1); color: #818cf8; }
+  .fc-badge-llm { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .fc-confidence { font-size: 10px; color: #5a5a6e; }
+  .fc-flag { margin-left: auto; color: #3d3d52; cursor: pointer; }
+  .fc-flag:hover { color: #fb923c; }
+
+  /* Trends */
+  .annotation-line { border-left: 1px dashed rgba(124,58,237,0.4); position: relative; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 600; color: #3d3d52; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #1e1e28; }
+  .data-table td { padding: 9px 12px; border-bottom: 1px solid #1a1a24; color: #9999aa; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(255,255,255,0.01); }
+  .td-change-good { color: #6ee7b7; font-weight: 600; }
+  .td-change-warn { color: #f59e0b; font-weight: 600; }
+
+  /* Settings */
+  .settings-input { background: #1a1a24; border: 1px solid #2a2a35; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #c8c8d8; font-family: inherit; width: 100%; outline: none; transition: border-color 0.12s; }
+  .settings-input:focus { border-color: rgba(99,102,241,0.4); }
+  .settings-label { font-size: 11px; font-weight: 500; color: #7a7a8c; margin-bottom: 5px; }
+  .settings-meta { font-size: 10px; color: #3d3d52; margin-top: 4px; }
+  .settings-row { padding: 12px 0; border-bottom: 1px solid #1a1a24; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .settings-row:last-child { border-bottom: none; }
+
+  /* Tabs */
+  .tab-bar { display: flex; gap: 2px; background: #0f0f13; padding: 3px; border-radius: 8px; width: fit-content; margin-bottom: 16px; }
+  .tab { padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; color: #5a5a6e; background: transparent; border: none; font-family: inherit; transition: all 0.12s; }
+  .tab.active { background: #16161d; color: #c8c8d8; }
+  .tab:hover:not(.active) { color: #9999aa; }
+
+  /* Scope selector */
+  .scope-pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.12s; }
+  .scope-pill.active { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #818cf8; }
+  .scope-pill:not(.active) { color: #5a5a6e; border-color: #1e1e28; }
+  .scope-pill:not(.active):hover { border-color: #2a2a35; color: #9999aa; }
+  .scope-pill.disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Sparkline canvas */
+  .sparkline { display: inline-block; vertical-align: middle; }
+
+  /* Status dot */
+  .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: #a78bfa; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* Typing cursor */
+  .typing-cursor { display: inline-block; width: 2px; height: 12px; background: #818cf8; margin-left: 1px; animation: blink 0.8s steps(1) infinite; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  /* Toggle switch */
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #7a7a8c; }
+  .toggle { position: relative; width: 30px; height: 16px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: #2a2a35; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+  .toggle-slider:before { content: ''; position: absolute; width: 12px; height: 12px; left: 2px; top: 2px; background: #5a5a6e; border-radius: 50%; transition: 0.2s; }
+  input:checked + .toggle-slider { background: rgba(99,102,241,0.3); }
+  input:checked + .toggle-slider:before { transform: translateX(14px); background: #6366f1; }
+
+  /* SP bar */
+  .sp-over { color: #f59e0b; font-size: 10px; }
+  .sp-ok { color: #6ee7b7; font-size: 10px; }
+
+  /* AI inline badge */
+  .ai-inline-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(124,58,237,0.12); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+  .ai-risk-badge { background: rgba(245,158,11,0.1); color: #f59e0b; border-color: rgba(245,158,11,0.2); }
+
+  /* Collapsed panel toggle button */
+  #ai-toggle-collapsed { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 20px; height: 60px; background: #16161d; border: 1px solid #1e1e28; border-right: none; border-radius: 6px 0 0 6px; cursor: pointer; display: none; align-items: center; justify-content: center; color: #5a5a6e; z-index: 10; }
+  #ai-toggle-collapsed.visible { display: flex; }
+  #ai-toggle-collapsed:hover { color: #a78bfa; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Trend arrow */
+  .trend-up { color: #6ee7b7; }
+  .trend-down { color: #fb923c; }
+  .trend-stable { color: #5a5a6e; }
+
+  /* Section header */
+  .section-header { font-size: 11px; font-weight: 600; color: #3d3d52; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<!-- LEFT SIDEBAR -->
+<nav id="left-sidebar">
+  <div class="nav-header">
+    <div class="nav-logo">
+      <div class="logo-mark">∑</div>
+      <div>
+        <div class="logo-text">FlowMetrics</div>
+        <div class="logo-sub">Engineering Intelligence</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Analytics</div>
+    <div class="nav-item active" data-view="overview">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Overview
+      <span class="nav-badge violet">Live</span>
+    </div>
+    <div class="nav-item" data-view="mrflow">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 9v6M9 6h10M9 18h2a4 4 0 0 0 4-4v-1"/></svg>
+      MR Flow
+    </div>
+    <div class="nav-item" data-view="feedback">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Feedback Intelligence
+      <span class="nav-badge">New</span>
+    </div>
+    <div class="nav-item" data-view="trends">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Trends
+    </div>
+    <div class="nav-item" data-view="tickets">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+      Ticket Correlation
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Config</div>
+    <div class="nav-item" data-view="settings">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M19.07 19.07l-1.41-1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+      Settings
+    </div>
+  </div>
+
+  <div class="nav-footer">
+    <div class="team-pill">
+      <div class="team-avatar">T</div>
+      <div>
+        <div class="team-name">Team Disco</div>
+        <div class="team-info">3 engineers · Jan W3 2026</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN AREA -->
+<div id="main-area">
+  <!-- Top bar -->
+  <div class="topbar">
+    <span class="topbar-title" id="topbar-title">Overview</span>
+    <span class="topbar-sub" id="topbar-sub">Sprint Jan W1–W3 · 47 MRs merged</span>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" onclick="exportDummy()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <button class="btn btn-violet" id="ai-toggle-btn" onclick="toggleAiPanel()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        AI Panel
+      </button>
+    </div>
+  </div>
+
+  <!-- Views -->
+  <div class="main-scroll" id="main-scroll">
+
+    <!-- OVERVIEW -->
+    <div class="view active" id="view-overview">
+      <!-- Metric cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+        <div class="metric-card">
+          <div class="metric-label">MRs Merged</div>
+          <div style="display:flex;align-items:flex-end;gap:10px;">
+            <div class="metric-value">47</div>
+            <canvas id="spark1" class="sparkline" width="60" height="28"></canvas>
+          </div>
+          <div class="metric-delta"><span class="up">↑ +8%</span> vs last sprint</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Median Cycle Time</div>
+          <div style="display:flex;align-items:flex-end;gap:10px;">
+            <div class="metric-value">6.1<span style="font-size:13px;font-weight:400;color:#5a5a6e;">h</span></div>
+            <canvas id="spark2" class="sparkline" width="60" height="28"></canvas>
+          </div>
+          <div class="metric-delta"><span class="down">↓ −16%</span> vs last sprint</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Rework Rate</div>
+          <div style="display:flex;align-items:flex-end;gap:10px;">
+            <div class="metric-value">11<span style="font-size:13px;font-weight:400;color:#5a5a6e;">%</span></div>
+            <canvas id="spark3" class="sparkline" width="60" height="28"></canvas>
+          </div>
+          <div class="metric-delta"><span class="stable">→ stable</span> vs last sprint</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Open MRs</div>
+          <div class="metric-value">3</div>
+          <div class="metric-delta">
+            <span class="warn">1 oversized</span>&nbsp;·&nbsp;<span class="warn">1 unlinked</span>
+            <span style="margin-left:auto;font-size:10px;background:rgba(245,158,11,0.1);color:#f59e0b;padding:1px 6px;border-radius:4px;cursor:pointer;">Review</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="chart-wrap">
+          <div class="chart-title">Cycle Time by Phase</div>
+          <div class="chart-sub">6-sprint trend · stacked hours · 2-week buckets</div>
+          <canvas id="cyclePhaseChart" height="180"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">MR Size Distribution</div>
+          <div class="chart-sub">6 sprints · Small &lt;70L / In Zone / Oversized &gt;553L</div>
+          <canvas id="mrSizeChart" height="180"></canvas>
+        </div>
+      </div>
+
+      <!-- Team cards -->
+      <div class="section-header">Team Activity — Current Sprint</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+        <div class="engineer-card">
+          <div class="eng-header">
+            <div class="eng-avatar" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">SA</div>
+            <div>
+              <div class="eng-name">Sebastian Aretz</div>
+              <div class="eng-role">Senior Engineer</div>
+            </div>
+            <div class="eng-health health-excellent">Excellent</div>
+          </div>
+          <div class="eng-stats">
+            <div class="eng-stat"><div class="eng-stat-value">23</div><div class="eng-stat-label">MRs merged</div></div>
+            <div class="eng-stat"><div class="eng-stat-value">0.9h</div><div class="eng-stat-label">avg cycle</div></div>
+            <div class="eng-stat"><div class="eng-stat-value">7%</div><div class="eng-stat-label">rework</div></div>
+          </div>
+          <canvas id="engChart1" height="40" style="opacity:0.7;"></canvas>
+        </div>
+        <div class="engineer-card">
+          <div class="eng-header">
+            <div class="eng-avatar" style="background:linear-gradient(135deg,#0ea5e9,#22d3ee)">JR</div>
+            <div>
+              <div class="eng-name">Jan Reiners</div>
+              <div class="eng-role">Engineer</div>
+            </div>
+            <div class="eng-health health-good">Good</div>
+          </div>
+          <div class="eng-stats">
+            <div class="eng-stat"><div class="eng-stat-value">14</div><div class="eng-stat-label">MRs merged</div></div>
+            <div class="eng-stat"><div class="eng-stat-value">3.2h</div><div class="eng-stat-label">avg cycle</div></div>
+            <div class="eng-stat"><div class="eng-stat-value">9%</div><div class="eng-stat-label">rework</div></div>
+          </div>
+          <canvas id="engChart2" height="40" style="opacity:0.7;"></canvas>
+        </div>
+        <div class="engineer-card">
+          <div class="eng-header">
+            <div class="eng-avatar" style="background:linear-gradient(135deg,#d97706,#f59e0b)">OU</div>
+            <div>
+              <div class="eng-name">Onur Ulusoy</div>
+              <div class="eng-role">Engineer</div>
+            </div>
+            <div class="eng-health health-developing">Developing</div>
+          </div>
+          <div class="eng-stats">
+            <div class="eng-stat"><div class="eng-stat-value">10</div><div class="eng-stat-label">MRs merged</div></div>
+            <div class="eng-stat"><div class="eng-stat-value">19.4h</div><div class="eng-stat-label">avg cycle</div></div>
+            <div class="eng-stat"><div class="eng-stat-value">18%</div><div class="eng-stat-label">rework</div></div>
+          </div>
+          <canvas id="engChart3" height="40" style="opacity:0.7;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- MR FLOW -->
+    <div class="view" id="view-mrflow">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div class="tab-bar">
+          <button class="tab active">All MRs</button>
+          <button class="tab">Open (3)</button>
+          <button class="tab">Merged</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-ghost">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>
+            Filter
+          </button>
+          <button class="btn btn-violet" onclick="sortByRisk()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
+            Sort by AI Risk
+          </button>
+        </div>
+      </div>
+      <div class="chart-wrap" style="padding:0;">
+        <div style="padding:10px 14px;border-bottom:1px solid #1a1a24;display:grid;grid-template-columns:8px 1fr 80px 70px 90px 100px 110px;gap:10px;font-size:10px;font-weight:600;color:#3d3d52;text-transform:uppercase;letter-spacing:0.5px;">
+          <div></div><div>Title</div><div>Author</div><div>Lines</div><div>Cycle</div><div>Ticket</div><div>AI Signal</div>
+        </div>
+        <div id="mr-list"></div>
+      </div>
+    </div>
+
+    <!-- FEEDBACK INTELLIGENCE -->
+    <div class="view" id="view-feedback">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <div class="scope-pill active" onclick="setScope(this,'all')">All themes</div>
+        <div class="scope-pill" onclick="setScope(this,'onur')">Onur</div>
+        <div class="scope-pill" onclick="setScope(this,'jan')">Jan</div>
+        <div class="scope-pill disabled">Sebastian (insuff. data)</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="chart-wrap">
+          <div class="chart-title">Feedback Themes</div>
+          <div class="chart-sub">Onur · last 6 sprints · categorized comments</div>
+          <canvas id="feedbackChart" height="260"></canvas>
+        </div>
+        <div>
+          <div class="section-header">Classification Audit</div>
+          <div id="feedback-comments"></div>
+        </div>
+      </div>
+      <div class="ai-insight" style="margin-bottom:0;">
+        <div class="ai-insight-header">
+          <svg class="ai-insight-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          Intelligence Summary
+        </div>
+        <div class="ai-insight-body">The <strong>architecture feedback pattern</strong> has been present for 7 months across 8 repositories. This is not a random signal — the consistency across contexts suggests a mental model gap around the team's layering conventions, not a context-specific issue. The pattern is gradually decreasing (<strong>−40% in last 3 sprints</strong>) but remains the most frequent category.</div>
+      </div>
+    </div>
+
+    <!-- TRENDS -->
+    <div class="view" id="view-trends">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div class="section-header" style="margin-bottom:0;">Historical Trends</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+          <label class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="perAuthorToggle" onchange="togglePerAuthor(this)"><span class="toggle-slider"></span></label>
+            Per-author view
+          </label>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px;">
+        <div class="chart-wrap">
+          <div class="chart-title">Cycle Time Trend</div>
+          <div class="chart-sub">8 two-week buckets · team median · hours</div>
+          <div style="position:relative;">
+            <canvas id="trendCycleChart" height="180"></canvas>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">MR Size Composition</div>
+          <div class="chart-sub">8 buckets · % by zone</div>
+          <canvas id="trendSizeChart" height="160"></canvas>
+        </div>
+      </div>
+      <div class="section-header">Sprint Comparison</div>
+      <div class="chart-wrap" style="padding:0;">
+        <table class="data-table">
+          <thead><tr><th>Metric</th><th>Last Sprint</th><th>Previous</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td>Median cycle time</td><td>6.1h</td><td>7.3h</td><td class="td-change-good">↓ −16%</td></tr>
+            <tr><td>Rework rate</td><td>11%</td><td>13%</td><td class="td-change-good">↓ −15%</td></tr>
+            <tr><td>MRs in zone</td><td>36%</td><td>34%</td><td class="td-change-good">↑ +6%</td></tr>
+            <tr><td>Unlinked MRs</td><td>7</td><td>9</td><td class="td-change-good">↓ −22%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TICKET CORRELATION -->
+    <div class="view" id="view-tickets">
+      <div style="margin-bottom:16px;">
+        <div class="section-header">Story Point Calibration</div>
+        <div class="chart-wrap" style="margin-bottom:12px;">
+          <div class="chart-title">Estimated vs Actual Lines per Story Point</div>
+          <div class="chart-sub">18 linked tickets with SP estimates (n=18 of 89 total — 20% coverage)</div>
+          <canvas id="spChart" height="200"></canvas>
+        </div>
+        <div class="ai-insight alert">
+          <div class="ai-insight-header">
+            <svg class="ai-insight-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Calibration Insight
+          </div>
+          <div class="ai-insight-body">Your team consistently <strong>underestimates 3-SP and 8-SP tickets by ~20%</strong>. This suggests the boundary between 2→3 and 5→8 may need recalibration. Consider: are your 3-SP tickets actually mid-complexity features that deserve 5 points?</div>
+        </div>
+      </div>
+      <div class="section-header">Ticket Linkage Health</div>
+      <div class="chart-wrap" style="padding:0;">
+        <table class="data-table">
+          <thead><tr><th>Sprint</th><th>Linked MRs</th><th>Unlinked</th><th>Coverage</th><th>Δ vs Previous</th></tr></thead>
+          <tbody>
+            <tr><td>Jan W3</td><td>40</td><td>7</td><td>85%</td><td class="td-change-good">↑ +8%</td></tr>
+            <tr><td>Jan W1</td><td>36</td><td>9</td><td>80%</td><td class="td-change-good">↑ +5%</td></tr>
+            <tr><td>Dec W3</td><td>33</td><td>11</td><td>75%</td><td class="td-change-good">↑ +2%</td></tr>
+            <tr><td>Dec W1</td><td>31</td><td>13</td><td>70%</td><td style="color:#5a5a6e;">→ 0%</td></tr>
+            <tr><td>Nov W3</td><td>29</td><td>14</td><td>67%</td><td class="td-change-warn">↓ −3%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="view-settings">
+      <div class="section-header">Working Agreements</div>
+      <div class="chart-wrap" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+          <div style="font-size:12px;font-weight:500;color:#c8c8d8;">Team Agreements</div>
+          <div style="margin-left:auto;font-size:11px;color:#5a5a6e;">Last changed by team on Jan 10, 2026</div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Reviewable Zone (min lines)</div>
+            <div class="settings-meta">MRs below this threshold are flagged as trivially small</div>
+          </div>
+          <div>
+            <input class="settings-input" type="number" value="70" />
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Reviewable Zone (max lines)</div>
+            <div class="settings-meta">MRs exceeding this are classified as oversized</div>
+          </div>
+          <div>
+            <input class="settings-input" type="number" value="553" />
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">MR Ticket Linkage Target (%)</div>
+            <div class="settings-meta">Minimum % of MRs that should reference a ticket</div>
+          </div>
+          <div>
+            <input class="settings-input" type="number" value="70" />
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Cycle Time Target (hours)</div>
+            <div class="settings-meta">Team median cycle time goal per sprint</div>
+          </div>
+          <div>
+            <input class="settings-input" type="number" value="8" />
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Rework Rate Target (%)</div>
+            <div class="settings-meta">Max acceptable rework rate before escalation</div>
+          </div>
+          <div>
+            <input class="settings-input" type="number" value="12" />
+          </div>
+        </div>
+        <div style="padding-top:14px;display:flex;gap:8px;">
+          <button class="btn btn-primary">Save Changes</button>
+          <button class="btn btn-ghost">Reset to Defaults</button>
+        </div>
+      </div>
+
+      <div class="section-header">GitLab Integration</div>
+      <div class="chart-wrap">
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">GitLab API Token</div>
+            <div class="settings-meta">PAT with read_api scope</div>
+          </div>
+          <div>
+            <input class="settings-input" type="password" value="glpat-xxxxxxxxxxxxxxxxxxxx" />
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Project Namespace</div>
+            <div class="settings-meta">e.g. my-org/team-disco</div>
+          </div>
+          <div>
+            <input class="settings-input" type="text" value="team-disco/backend" />
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Jira Integration URL</div>
+            <div class="settings-meta">Your Jira cloud or server URL</div>
+          </div>
+          <div>
+            <input class="settings-input" type="text" value="https://disco.atlassian.net" />
+          </div>
+        </div>
+        <div style="padding-top:14px;display:flex;gap:8px;">
+          <button class="btn btn-primary">Save</button>
+          <button class="btn btn-ghost">Test Connection</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end main-scroll -->
+</div><!-- end main-area -->
+
+<!-- RIGHT AI PANEL -->
+<div id="ai-panel">
+  <div class="ai-header">
+    <div class="pulse-dot"></div>
+    <div class="ai-title">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      AI Intelligence
+    </div>
+    <div class="ai-mode-toggle">
+      <button class="ai-mode-btn active" id="mode-insights" onclick="setAiMode('insights')">Insights</button>
+      <button class="ai-mode-btn" id="mode-ask" onclick="setAiMode('ask')">Ask</button>
+    </div>
+    <button onclick="toggleAiPanel()" style="margin-left:6px;background:transparent;border:none;color:#3d3d52;cursor:pointer;padding:2px;" title="Collapse">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 21 12 15 6"/><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+
+  <!-- Insights mode -->
+  <div class="ai-panel-body" id="ai-insights-body">
+    <div class="ai-insight">
+      <div class="ai-insight-header">
+        <svg class="ai-insight-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Sprint Summary
+      </div>
+      <div class="ai-insight-body">The team merged <strong>47 MRs</strong> last sprint. Cycle time improved <strong>16%</strong> vs the previous sprint, driven by a reduction in large MR cycle time. Rework rate is stable at <strong>11%</strong>.</div>
+    </div>
+    <div class="ai-insight warn">
+      <div class="ai-insight-header">
+        <svg class="ai-insight-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Pattern Detected
+      </div>
+      <div class="ai-insight-body"><strong>Onur's Pickup phase</strong> accounts for 18% of total cycle time this sprint (vs 4% team average). 3 of 8 MRs waited <strong>&gt;8 hours</strong> for first reviewer engagement.</div>
+    </div>
+    <div class="ai-insight alert">
+      <div class="ai-insight-header">
+        <svg class="ai-insight-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Working Agreement Alert
+      </div>
+      <div class="ai-insight-body">MR-to-ticket linking is at <strong>58%</strong> this sprint, below the team's 70% target. 7 MRs are unlinked. Link them before the retro to ensure clean data.</div>
+    </div>
+    <div class="ai-insight">
+      <div class="ai-insight-header">
+        <svg class="ai-insight-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        Suggested Retro Topic
+      </div>
+      <div class="ai-insight-body"><strong>Architecture feedback</strong> has appeared in 47% of Onur's MRs for 4 consecutive sprints. Consider a focused session on service layer conventions.</div>
+    </div>
+  </div>
+
+  <!-- Ask mode -->
+  <div class="ai-panel-body" id="ai-ask-body" style="display:none;padding-bottom:0;flex:1;">
+    <div style="font-size:11px;color:#3d3d52;margin-bottom:10px;font-weight:500;">Suggested questions</div>
+    <div class="suggested-questions" id="suggested-questions">
+      <button class="sq-btn" onclick="askQuestion('What improved most this sprint?')">What improved most this sprint?</button>
+      <button class="sq-btn" onclick="askQuestion('Where is our cycle time bottleneck?')">Where is our cycle time bottleneck?</button>
+      <button class="sq-btn" onclick="askQuestion('What should Onur focus on next sprint?')">What should Onur focus on next sprint?</button>
+      <button class="sq-btn" onclick="askQuestion('Are we improving on MR size?')">Are we improving on MR size?</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+  </div>
+  <div class="chat-input-area" id="chat-input-area" style="display:none;">
+    <div class="chat-input-wrap">
+      <textarea class="chat-input" id="chat-input" rows="1" placeholder="Ask about your team's data…" onkeydown="handleChatKey(event)"></textarea>
+      <button class="chat-send-btn" onclick="submitChat()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────
+const DATA = {
+  team: {
+    sebastian: { name: 'Sebastian Aretz', initials: 'SA', color: '#6366f1', mrsPerWeek: 19.3, medianCycleTime: 0.9, reworkRate: 0.07 },
+    jan: { name: 'Jan Reiners', initials: 'JR', color: '#22d3ee', mrsPerWeek: 5.5, medianCycleTime: 3.2, reworkRate: 0.09 },
+    onur: { name: 'Onur Ulusoy', initials: 'OU', color: '#f59e0b', mrsPerWeek: 3.6, medianCycleTime: 19.4, reworkRate: 0.18 }
+  },
+  cycleTimeTrend: [4.2, 3.8, 5.1, 4.4, 3.9, 3.7, 4.1, 3.5],
+  bucketLabels: ['Oct W1', 'Oct W3', 'Nov W1', 'Nov W3', 'Dec W1', 'Dec W3', 'Jan W1', 'Jan W3']
+};
+
+const PHASE_LABELS = ['Oct W3','Nov W1','Nov W3','Dec W1','Dec W3','Jan W3'];
+const CODING_DATA   = [2.1, 1.9, 2.4, 2.0, 1.8, 1.7];
+const PICKUP_DATA   = [1.2, 1.0, 1.4, 1.1, 0.9, 0.8];
+const REVIEW_DATA   = [0.9, 0.9, 1.3, 1.3, 1.2, 1.0];
+
+const MRS = [
+  { title: 'feat: Implement user session caching layer', author: 'Onur', authorKey:'onur', lines: 847, cycle: 98, ticket: null, badge: 'risk', aiText: '⚠ Oversized + 3 review rounds + pickup phase anomaly' },
+  { title: 'feat: Add payment processing webhook', author: 'Jan', authorKey:'jan', lines: 234, cycle: 5.6, ticket: 'DISC-445', badge: 'clean', aiText: '✦ Clean: in zone, 1 review round' },
+  { title: 'chore: Update Datadog monitors', author: 'Sebastian', authorKey:'sebastian', lines: 45, cycle: 0.7, ticket: 'DISC-432', badge: 'clean', aiText: '✦ Clean' },
+  { title: 'refactor: Extract order service logic', author: 'Sebastian', authorKey:'sebastian', lines: 312, cycle: 3.4, ticket: 'DISC-441', badge: 'clean', aiText: '✦ Clean: in zone' },
+  { title: 'feat: Inventory availability endpoint', author: 'Onur', authorKey:'onur', lines: 623, cycle: 74, ticket: 'DISC-389', badge: 'warn', aiText: '⚠ Oversized pattern' },
+  { title: 'feat: Product recommendations API', author: 'Jan', authorKey:'jan', lines: 445, cycle: 10.3, ticket: 'DISC-401', badge: 'clean', aiText: '✦ Clean' },
+  { title: 'chore: Flyway migration for preferences', author: 'Onur', authorKey:'onur', lines: 28, cycle: 4, ticket: null, badge: 'unlinked', aiText: '⚑ Unlinked — no ticket reference' },
+  { title: 'fix: Race condition in auth', author: 'Sebastian', authorKey:'sebastian', lines: 112, cycle: 2.1, ticket: 'DISC-448', badge: 'clean', aiText: '✦ Clean' }
+];
+
+const FEEDBACK_THEMES = {
+  labels: ['Architecture / layering','Naming conventions','Error handling','Test coverage','Abstraction level','Performance concern','Doc / comments','Minor nits'],
+  data: [38, 22, 18, 15, 12, 9, 7, 6],
+  trends: ['↓','→','↓','↑','→','↑','→','→']
+};
+
+const FEEDBACK_COMMENTS = [
+  { text: 'This service is reaching into the repo layer directly — consider moving this logic into a use case class…', method: 'llm', confidence: 94, category: 'Architecture / layering' },
+  { text: 'The variable name `d` is not descriptive enough here; `discountMultiplier` would read better in context.', method: 'regex', confidence: null, category: 'Naming conventions' },
+  { text: 'No error handling for the case where the external call times out — what should happen here?', method: 'llm', confidence: 88, category: 'Error handling' },
+  { text: 'This branch of logic has no unit test coverage. Can we add a test for the edge case where inventory is 0?', method: 'llm', confidence: 91, category: 'Test coverage' }
+];
+
+// ─────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────
+const VIEW_META = {
+  overview:  { title: 'Overview',              sub: 'Sprint Jan W1–W3 · 47 MRs merged' },
+  mrflow:    { title: 'MR Flow',               sub: '8 MRs shown · current + last sprint' },
+  feedback:  { title: 'Feedback Intelligence', sub: 'Onur · last 6 sprints · 127 classified comments' },
+  trends:    { title: 'Trends',                sub: '8 two-week buckets · Oct 2025 → Jan 2026' },
+  tickets:   { title: 'Ticket Correlation',    sub: 'Jira linkage · SP calibration · n=18' },
+  settings:  { title: 'Settings',              sub: 'Working agreements · Integrations' }
+};
+
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    const view = el.dataset.view;
+    if (!view) return;
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    const meta = VIEW_META[view] || {};
+    document.getElementById('topbar-title').textContent = meta.title || '';
+    document.getElementById('topbar-sub').textContent = meta.sub || '';
+    document.getElementById('main-scroll').scrollTop = 0;
+  });
+});
+
+// ─────────────────────────────────────────
+// CHART DEFAULTS
+// ─────────────────────────────────────────
+Chart.defaults.color = '#5a5a6e';
+Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+Chart.defaults.font.size = 11;
+
+const PALETTE = {
+  violet: '#7c3aed',
+  indigo: '#6366f1',
+  indigoLight: '#818cf8',
+  cyan: '#22d3ee',
+  amber: '#f59e0b',
+  teal: '#14b8a6',
+  rose: '#f43f5e',
+  slate: '#475569'
+};
+
+const gridOpts = {
+  color: 'rgba(255,255,255,0.04)',
+  drawBorder: false
+};
+
+// ─────────────────────────────────────────
+// SPARKLINES
+// ─────────────────────────────────────────
+function drawSparkline(id, data, color) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map((_, i) => i),
+      datasets: [{ data, borderColor: color, borderWidth: 1.5, tension: 0.4, pointRadius: 0, fill: false }]
+    },
+    options: {
+      responsive: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false } },
+      animation: false
+    }
+  });
+}
+
+drawSparkline('spark1', [41, 39, 44, 43, 47, 47], PALETTE.indigoLight);
+drawSparkline('spark2', [8.1, 7.6, 9.2, 7.8, 7.3, 6.1], PALETTE.cyan);
+drawSparkline('spark3', [12, 13, 11, 12, 13, 11], '#a1a1aa');
+
+// Engineer sparklines
+drawSparkline('engChart1', [20, 22, 18, 24, 21, 23], PALETTE.indigo);
+drawSparkline('engChart2', [12, 15, 13, 14, 16, 14], PALETTE.cyan);
+drawSparkline('engChart3', [8, 9, 11, 10, 9, 10], PALETTE.amber);
+
+// ─────────────────────────────────────────
+// OVERVIEW CHARTS
+// ─────────────────────────────────────────
+(function initCyclePhaseChart() {
+  const ctx = document.getElementById('cyclePhaseChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: PHASE_LABELS,
+      datasets: [
+        {
+          label: 'Coding',
+          data: CODING_DATA,
+          fill: true,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.28)',
+          borderWidth: 1.5,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: '#6366f1'
+        },
+        {
+          label: 'Pickup',
+          data: PICKUP_DATA,
+          fill: true,
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34,211,238,0.15)',
+          borderWidth: 1.5,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: '#22d3ee'
+        },
+        {
+          label: 'Review',
+          data: REVIEW_DATA,
+          fill: true,
+          borderColor: '#7c3aed',
+          backgroundColor: 'rgba(124,58,237,0.1)',
+          borderWidth: 1.5,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: '#7c3aed'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: '#1a1a24',
+          borderColor: '#2a2a35',
+          borderWidth: 1,
+          titleColor: '#c8c8d8',
+          bodyColor: '#9999aa',
+          padding: 10
+        }
+      },
+      scales: {
+        x: { grid: gridOpts, ticks: { color: '#3d3d52' } },
+        y: { grid: gridOpts, ticks: { color: '#3d3d52' }, title: { display: true, text: 'hours', color: '#3d3d52', font: { size: 10 } } }
+      }
+    }
+  });
+})();
+
+(function initMrSizeChart() {
+  const ctx = document.getElementById('mrSizeChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: PHASE_LABELS,
+      datasets: [
+        { label: 'Small <70L', data: [52, 49, 55, 51, 50, 48], backgroundColor: 'rgba(99,102,241,0.55)', stack: 'a' },
+        { label: 'In Zone', data: [30, 33, 28, 32, 34, 36], backgroundColor: 'rgba(34,211,238,0.45)', stack: 'a' },
+        { label: 'Oversized', data: [18, 18, 17, 17, 16, 16], backgroundColor: 'rgba(245,158,11,0.45)', stack: 'a' }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: '#1a1a24',
+          borderColor: '#2a2a35',
+          borderWidth: 1,
+          titleColor: '#c8c8d8',
+          bodyColor: '#9999aa',
+          padding: 10,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}%` }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#3d3d52' }, stacked: true },
+        y: { grid: gridOpts, ticks: { color: '#3d3d52', callback: v => v + '%' }, stacked: true, max: 100 }
+      }
+    }
+  });
+})();
+
+// ─────────────────────────────────────────
+// MR FLOW VIEW
+// ─────────────────────────────────────────
+const authorColors = { sebastian: '#6366f1', jan: '#22d3ee', onur: '#f59e0b' };
+
+function renderMrList(data) {
+  const list = document.getElementById('mr-list');
+  list.innerHTML = data.map(mr => {
+    const badgeClass = mr.badge === 'clean' ? 'badge-clean' : mr.badge === 'risk' ? 'badge-warn' : mr.badge === 'unlinked' ? 'badge-unlinked' : 'badge-warn';
+    const ticketHtml = mr.ticket
+      ? `<span class="ticket-pill">${mr.ticket}</span>`
+      : `<span class="ticket-pill" style="color:#f87171;border-color:rgba(239,68,68,0.2);">NO TICKET</span>`;
+    return `<div class="mr-row">
+      <div class="mr-author-dot" style="background:${authorColors[mr.authorKey]};"></div>
+      <div class="mr-title" title="${mr.title}">${mr.title}</div>
+      <div class="mr-meta">
+        <span style="font-size:11px;color:#5a5a6e;">${mr.author}</span>
+        <span style="font-size:11px;color:#3d3d52;">${mr.lines}L</span>
+        <span style="font-size:11px;color:#5a5a6e;">${mr.cycle}h</span>
+        ${ticketHtml}
+        <span class="mr-badge ${badgeClass}">${mr.badge === 'clean' ? '✦ clean' : mr.badge === 'risk' ? '⚠ risk' : mr.badge === 'unlinked' ? '⚑ unlinked' : '⚠ warn'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+renderMrList(MRS);
+
+let riskSorted = false;
+function sortByRisk() {
+  riskSorted = !riskSorted;
+  const sorted = riskSorted
+    ? [...MRS].sort((a, b) => b.cycle - a.cycle)
+    : [...MRS];
+  renderMrList(sorted);
+}
+
+// ─────────────────────────────────────────
+// FEEDBACK INTELLIGENCE VIEW
+// ─────────────────────────────────────────
+(function initFeedbackChart() {
+  const ctx = document.getElementById('feedbackChart').getContext('2d');
+  const labelsWithTrend = FEEDBACK_THEMES.labels.map((l, i) => l + '  ' + FEEDBACK_THEMES.trends[i]);
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labelsWithTrend,
+      datasets: [{
+        label: 'Comments',
+        data: FEEDBACK_THEMES.data,
+        backgroundColor: FEEDBACK_THEMES.data.map((v, i) => i === 0 ? 'rgba(124,58,237,0.7)' : 'rgba(99,102,241,0.4)'),
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a24',
+          borderColor: '#2a2a35',
+          borderWidth: 1,
+          titleColor: '#c8c8d8',
+          bodyColor: '#9999aa',
+          padding: 10
+        }
+      },
+      scales: {
+        x: { grid: gridOpts, ticks: { color: '#3d3d52' } },
+        y: { grid: { display: false }, ticks: { color: '#7a7a8c', font: { size: 11 } } }
+      }
+    }
+  });
+})();
+
+(function renderFeedbackComments() {
+  const el = document.getElementById('feedback-comments');
+  el.innerHTML = FEEDBACK_COMMENTS.map(fc => `
+    <div class="feedback-comment">
+      <div class="fc-text">"${fc.text}"</div>
+      <div class="fc-meta">
+        <span class="fc-badge ${fc.method === 'regex' ? 'fc-badge-regex' : 'fc-badge-llm'}">${fc.method === 'regex' ? 'regex' : 'LLM ✦'}</span>
+        ${fc.confidence ? `<span class="fc-confidence">${fc.confidence}% confidence</span>` : ''}
+        <span style="font-size:10px;color:#3d3d52;">${fc.category}</span>
+        <button class="fc-flag" title="Flag for review">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+        </button>
+      </div>
+    </div>
+  `).join('');
+})();
+
+function setScope(el, scope) {
+  document.querySelectorAll('.scope-pill:not(.disabled)').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ─────────────────────────────────────────
+// TRENDS VIEW
+// ─────────────────────────────────────────
+let trendCycleChart, trendSizeChart;
+let perAuthorMode = false;
+
+const PER_AUTHOR_CYCLE = {
+  sebastian: [0.9, 0.8, 1.1, 0.9, 0.8, 0.7, 0.9, 0.8],
+  jan: [3.4, 3.1, 4.2, 3.6, 3.3, 3.0, 3.5, 3.2],
+  onur: [22, 20, 26, 22, 19, 18, 20, 19]
+};
+
+function initTrendCharts() {
+  const ctx1 = document.getElementById('trendCycleChart').getContext('2d');
+  const ctx2 = document.getElementById('trendSizeChart').getContext('2d');
+
+  trendCycleChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: DATA.bucketLabels,
+      datasets: [{
+        label: 'Team Median',
+        data: DATA.cycleTimeTrend,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.08)',
+        fill: true,
+        tension: 0.4,
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#6366f1'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14 } },
+        tooltip: {
+          backgroundColor: '#1a1a24', borderColor: '#2a2a35', borderWidth: 1,
+          titleColor: '#c8c8d8', bodyColor: '#9999aa', padding: 10
+        },
+        annotation: {}
+      },
+      scales: {
+        x: { grid: gridOpts, ticks: { color: '#3d3d52' } },
+        y: { grid: gridOpts, ticks: { color: '#3d3d52' }, title: { display: true, text: 'hours', color: '#3d3d52', font: { size: 10 } } }
+      }
+    }
+  });
+
+  trendSizeChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: DATA.bucketLabels,
+      datasets: [
+        { label: 'Small', data: [55,52,49,55,51,50,50,48], backgroundColor: 'rgba(99,102,241,0.5)', stack: 's' },
+        { label: 'In Zone', data: [28,30,33,28,32,34,34,36], backgroundColor: 'rgba(34,211,238,0.4)', stack: 's' },
+        { label: 'Oversized', data: [17,18,18,17,17,16,16,16], backgroundColor: 'rgba(245,158,11,0.4)', stack: 's' }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14 } },
+        tooltip: {
+          backgroundColor: '#1a1a24', borderColor: '#2a2a35', borderWidth: 1,
+          titleColor: '#c8c8d8', bodyColor: '#9999aa', padding: 10,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}%` }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#3d3d52' }, stacked: true },
+        y: { grid: gridOpts, ticks: { color: '#3d3d52', callback: v => v + '%' }, stacked: true, max: 100 }
+      }
+    }
+  });
+}
+
+initTrendCharts();
+
+function togglePerAuthor(el) {
+  perAuthorMode = el.checked;
+  if (perAuthorMode) {
+    trendCycleChart.data.datasets = [
+      { label: 'Sebastian', data: PER_AUTHOR_CYCLE.sebastian, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.05)', fill: false, tension: 0.4, borderWidth: 1.5, pointRadius: 2 },
+      { label: 'Jan', data: PER_AUTHOR_CYCLE.jan, borderColor: '#22d3ee', backgroundColor: 'transparent', fill: false, tension: 0.4, borderWidth: 1.5, pointRadius: 2 },
+      { label: 'Onur', data: PER_AUTHOR_CYCLE.onur, borderColor: '#f59e0b', backgroundColor: 'transparent', fill: false, tension: 0.4, borderWidth: 1.5, pointRadius: 2 }
+    ];
+  } else {
+    trendCycleChart.data.datasets = [{
+      label: 'Team Median', data: DATA.cycleTimeTrend,
+      borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.08)',
+      fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1'
+    }];
+  }
+  trendCycleChart.update();
+}
+
+// ─────────────────────────────────────────
+// TICKET CORRELATION VIEW
+// ─────────────────────────────────────────
+(function initSpChart() {
+  const ctx = document.getElementById('spChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['1 SP', '2 SP', '3 SP', '5 SP', '8 SP'],
+      datasets: [
+        { label: 'Estimated (L)', data: [40, 80, 120, 200, 320], backgroundColor: 'rgba(99,102,241,0.5)', borderRadius: 3 },
+        { label: 'Actual (L)', data: [38, 95, 142, 189, 387], backgroundColor: 'rgba(245,158,11,0.5)', borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14 } },
+        tooltip: {
+          backgroundColor: '#1a1a24', borderColor: '#2a2a35', borderWidth: 1,
+          titleColor: '#c8c8d8', bodyColor: '#9999aa', padding: 10
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7a7a8c' } },
+        y: { grid: gridOpts, ticks: { color: '#3d3d52' }, title: { display: true, text: 'lines', color: '#3d3d52', font: { size: 10 } } }
+      }
+    }
+  });
+})();
+
+// ─────────────────────────────────────────
+// AI PANEL
+// ─────────────────────────────────────────
+let aiPanelOpen = true;
+let aiMode = 'insights';
+
+function toggleAiPanel() {
+  aiPanelOpen = !aiPanelOpen;
+  const panel = document.getElementById('ai-panel');
+  panel.classList.toggle('collapsed', !aiPanelOpen);
+}
+
+function setAiMode(mode) {
+  aiMode = mode;
+  document.getElementById('mode-insights').classList.toggle('active', mode === 'insights');
+  document.getElementById('mode-ask').classList.toggle('active', mode === 'ask');
+  document.getElementById('ai-insights-body').style.display = mode === 'insights' ? 'block' : 'none';
+  document.getElementById('ai-ask-body').style.display = mode === 'ask' ? 'flex' : 'none';
+  document.getElementById('ai-ask-body').style.flexDirection = 'column';
+  document.getElementById('chat-input-area').style.display = mode === 'ask' ? 'block' : 'none';
+}
+
+// ─────────────────────────────────────────
+// CHAT
+// ─────────────────────────────────────────
+const SCRIPTED_RESPONSES = {
+  'What improved most this sprint?': "Cycle time is down 16% sprint-over-sprint. The biggest driver is Onur's medium-sized MRs (70–553 lines) — median improved from 22h to 17.9h. Jan's review turnaround dropped from 2.8h to 1.4h. One concern: the 3 oversized MRs (>553 lines) still average 74h cycle time.",
+  'Where is our cycle time bottleneck?': "The data points to two distinct bottlenecks depending on the author. For Onur, the Review phase is the primary bottleneck (avg 68% of total cycle time) — this correlates with higher reviewer comment rates (2.6 comments/MR vs team avg 0.8). For Jan, cycle time is well-distributed across phases. Sebastian's cycle time is negligible across all phases.",
+  'What should Onur focus on next sprint?': "Based on the data: (1) Break up the 2 currently open oversized MRs — both exceed 800 lines and are in the Pickup phase. (2) Architecture feedback has been the #1 review category for 4 sprints — a targeted pairing session on layering conventions would likely reduce review iterations. (3) Review participation: 12 review comments given in 6 months — increasing active review of teammates' MRs would build architectural awareness organically.",
+  'Are we improving on MR size?': "Yes, gradually. Oversized MRs dropped from 18% to 16% over the last 6 sprints — slow but consistent. The 'In Zone' bucket grew from 30% to 36%, which is the real signal. The challenge is Onur's two currently open MRs (847L and 623L) which skew the average. If those close in zone, the sprint-end number will look significantly better."
+};
+
+let isTyping = false;
+
+function askQuestion(q) {
+  if (isTyping) return;
+  addUserBubble(q);
+  const response = SCRIPTED_RESPONSES[q] || "I don't have a scripted response for that yet, but I'd look at the cycle time trend and rework rate for the most actionable signals.";
+  setTimeout(() => streamAiResponse(response), 400);
+}
+
+function addUserBubble(text) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-bubble user';
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  document.getElementById('ai-ask-body').scrollTop = document.getElementById('ai-ask-body').scrollHeight;
+}
+
+function streamAiResponse(text) {
+  isTyping = true;
+  const msgs = document.getElementById('chat-messages');
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble ai';
+  bubble.innerHTML = `<div class="ai-name"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg> FlowMetrics AI</div><span id="stream-text"></span><span class="typing-cursor" id="typing-cursor"></span>`;
+  msgs.appendChild(bubble);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  const target = bubble.querySelector('#stream-text');
+  const cursor = bubble.querySelector('#typing-cursor');
+  let i = 0;
+  const speed = 14; // ms per char
+
+  function tick() {
+    if (i < text.length) {
+      target.textContent += text[i];
+      i++;
+      msgs.scrollTop = msgs.scrollHeight;
+      document.getElementById('ai-ask-body').scrollTop = document.getElementById('ai-ask-body').scrollHeight;
+      setTimeout(tick, speed);
+    } else {
+      cursor.remove();
+      isTyping = false;
+    }
+  }
+  tick();
+}
+
+function submitChat() {
+  const input = document.getElementById('chat-input');
+  const q = input.value.trim();
+  if (!q || isTyping) return;
+  input.value = '';
+  const match = Object.keys(SCRIPTED_RESPONSES).find(k => k.toLowerCase().includes(q.toLowerCase().slice(0, 12)));
+  const response = match ? SCRIPTED_RESPONSES[match] : "That's a great question. Based on the available data, I'd look at the cycle time trend and rework rate as the most actionable signals here.";
+  addUserBubble(q);
+  setTimeout(() => streamAiResponse(response), 400);
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    submitChat();
+  }
+}
+
+// ─────────────────────────────────────────
+// MISC
+// ─────────────────────────────────────────
+function exportDummy() {
+  const a = document.createElement('a');
+  a.href = 'data:text/plain;charset=utf-8,FlowMetrics export placeholder';
+  a.download = 'flowmetrics-export.txt';
+  a.click();
+}
+
+// Lucide icons init (if needed)
+if (window.lucide) {
+  lucide.createIcons();
+}
+</script>
+</body>
+</html>

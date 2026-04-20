@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Team Health · Engineering Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            surface: { DEFAULT: '#111113', 1: '#18181b', 2: '#1f1f23', 3: '#27272b' },
+            border: { DEFAULT: '#2e2e33', strong: '#3f3f46' },
+            accent: { DEFAULT: '#6366f1', hover: '#818cf8', muted: '#4338ca' },
+            amber: { subtle: '#451a03', text: '#f59e0b', border: '#78350f' },
+            cyan: { text: '#22d3ee' },
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #0a0a0c; color: #e4e4e7; font-family: 'Inter', system-ui, sans-serif; margin: 0; overflow: hidden; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+    .sidebar { width: 240px; min-width: 240px; height: 100vh; background: #111113; border-right: 1px solid #1f1f23; display: flex; flex-direction: column; position: fixed; left: 0; top: 0; z-index: 50; }
+    .main { margin-left: 240px; height: 100vh; overflow-y: auto; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13.5px; font-weight: 500; color: #a1a1aa; transition: all 0.12s ease; margin: 1px 8px; user-select: none; }
+    .nav-item:hover { background: #18181b; color: #e4e4e7; }
+    .nav-item.active { background: #1e1e2e; color: #818cf8; }
+    .nav-item.active .nav-icon { color: #6366f1; }
+    .nav-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .card { background: #111113; border: 1px solid #1f1f23; border-radius: 8px; }
+    .card-sm { background: #18181b; border: 1px solid #27272b; border-radius: 8px; }
+
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; }
+    .badge-amber { background: #451a03; color: #f59e0b; border: 1px solid #78350f; }
+    .badge-green { background: #052e16; color: #4ade80; border: 1px solid #14532d; }
+    .badge-neutral { background: #18181b; color: #71717a; border: 1px solid #3f3f46; }
+    .badge-blue { background: #1e1b4b; color: #818cf8; border: 1px solid #312e81; }
+    .badge-oversized { background: #451a03; color: #fb923c; border: 1px solid #9a3412; }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot-amber { background: #f59e0b; box-shadow: 0 0 6px #f59e0b66; }
+    .status-dot-green { background: #4ade80; box-shadow: 0 0 6px #4ade8066; }
+    .status-dot-neutral { background: #52525b; }
+
+    .ai-panel { background: linear-gradient(135deg, #0f0a1e 0%, #110d20 50%, #0a0f1e 100%); border: 1px solid #2d1f4e; border-radius: 8px; position: relative; overflow: hidden; }
+    .ai-panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, #7c3aed66, #6366f166, transparent); }
+
+    .sparkline { display: inline-block; vertical-align: middle; }
+
+    .mr-row { border-bottom: 1px solid #1a1a1e; transition: background 0.1s; }
+    .mr-row:last-child { border-bottom: none; }
+    .mr-row:hover { background: #111113; }
+    .mr-row-oversized { border-left: 2px solid #f59e0b; }
+
+    .stat-card { background: #111113; border: 1px solid #1f1f23; border-radius: 8px; padding: 20px 24px; }
+    .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: #f4f4f5; }
+    .stat-label { font-size: 12px; font-weight: 500; color: #71717a; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .stat-sub { font-size: 12px; color: #52525b; margin-top: 4px; }
+
+    .wa-row { border-bottom: 1px solid #1a1a1e; padding: 16px 24px; display: flex; align-items: center; gap: 16px; transition: background 0.1s; }
+    .wa-row:last-child { border-bottom: none; }
+    .wa-row:hover { background: #111113; }
+
+    .input-field { background: #1a1a1e; border: 1px solid #27272b; border-radius: 6px; padding: 6px 10px; color: #e4e4e7; font-size: 13px; font-family: inherit; outline: none; transition: border-color 0.15s; width: 100px; }
+    .input-field:focus { border-color: #6366f1; box-shadow: 0 0 0 2px #6366f122; }
+
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 500; }
+    .chip-amber { background: #1c1007; color: #f59e0b; }
+    .chip-green { background: #071810; color: #4ade80; }
+
+    .section-header { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; margin-bottom: 12px; }
+
+    .page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: #f4f4f5; }
+    .page-subtitle { font-size: 13px; color: #71717a; margin-top: 2px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #52525b; padding: 10px 16px; text-align: left; border-bottom: 1px solid #1f1f23; }
+    tbody td { padding: 12px 16px; font-size: 13px; color: #a1a1aa; border-bottom: 1px solid #18181b; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #111113; color: #e4e4e7; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.12s; border: none; font-family: inherit; user-select: none; }
+    .btn-primary { background: #4f46e5; color: #fff; }
+    .btn-primary:hover { background: #6366f1; }
+    .btn-ghost { background: transparent; color: #a1a1aa; border: 1px solid #27272b; }
+    .btn-ghost:hover { background: #18181b; color: #e4e4e7; }
+
+    .select-field { background: #1a1a1e; border: 1px solid #27272b; border-radius: 6px; padding: 7px 10px; color: #e4e4e7; font-size: 13px; font-family: inherit; outline: none; cursor: pointer; }
+    .select-field:focus { border-color: #6366f1; }
+
+    .annotation-marker { position: absolute; top: 0; bottom: 0; width: 1px; background: #6366f133; }
+    .annotation-label { position: absolute; top: 4px; font-size: 10px; color: #818cf8; white-space: nowrap; }
+
+    .tooltip-custom { position: absolute; background: #18181b; border: 1px solid #27272b; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #e4e4e7; pointer-events: none; z-index: 100; white-space: nowrap; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.18s ease; }
+
+    .trend-up { color: #4ade80; }
+    .trend-down { color: #f59e0b; }
+
+    .changed-badge { font-size: 10px; color: #52525b; font-weight: 400; }
+  </style>
+</head>
+<body class="text-zinc-300">
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+  <div class="px-4 pt-5 pb-4 border-b border-[#1f1f23]">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center flex-shrink-0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div>
+        <div class="text-[13px] font-600 text-zinc-100 leading-tight font-semibold">Engineering Pulse</div>
+        <div class="text-[11px] text-zinc-500 leading-tight">Checkout Squad</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="flex-1 py-3 overflow-y-auto">
+    <div class="px-4 mb-2">
+      <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Analytics</span>
+    </div>
+    <div class="nav-item active" data-view="team-health" onclick="navigate('team-health', this)">
+      <i data-lucide="activity" class="nav-icon"></i>
+      <span>Team Health</span>
+    </div>
+    <div class="nav-item" data-view="mr-list" onclick="navigate('mr-list', this)">
+      <i data-lucide="git-pull-request" class="nav-icon"></i>
+      <span>MR List</span>
+    </div>
+    <div class="nav-item" data-view="feedback" onclick="navigate('feedback', this)">
+      <i data-lucide="message-square" class="nav-icon"></i>
+      <span>Feedback Themes</span>
+    </div>
+    <div class="nav-item" data-view="trends" onclick="navigate('trends', this)">
+      <i data-lucide="trending-up" class="nav-icon"></i>
+      <span>Trends</span>
+    </div>
+
+    <div class="px-4 mb-2 mt-4">
+      <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Configuration</span>
+    </div>
+    <div class="nav-item" data-view="settings" onclick="navigate('settings', this)">
+      <i data-lucide="sliders-horizontal" class="nav-icon"></i>
+      <span>Working Agreements</span>
+    </div>
+  </nav>
+
+  <div class="px-4 py-3 border-t border-[#1f1f23]">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0">SA</div>
+      <div class="min-w-0">
+        <div class="text-[12px] font-medium text-zinc-200 truncate">Sebastian Aretz</div>
+        <div class="text-[11px] text-zinc-500">Tech Lead</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ─── MAIN CONTENT ─── -->
+<main class="main bg-[#0a0a0c]">
+
+  <!-- ══════════════════════════════════ TEAM HEALTH VIEW ══════════════════════════════════ -->
+  <div id="view-team-health" class="view active fade-in">
+    <div class="px-8 pt-7 pb-6 border-b border-[#1a1a1e] flex items-start justify-between">
+      <div>
+        <div class="page-title">Team Health</div>
+        <div class="page-subtitle">Sprint 24 · Apr 7 – Apr 20, 2026 · <span class="text-indigo-400 font-medium">Live</span></div>
+      </div>
+      <div class="flex items-center gap-2.5 pt-1">
+        <button class="btn btn-ghost text-xs">
+          <i data-lucide="calendar" style="width:13px;height:13px"></i>
+          This Sprint
+        </button>
+        <button class="btn btn-ghost text-xs">
+          <i data-lucide="refresh-cw" style="width:13px;height:13px"></i>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="px-8 py-6 space-y-7">
+
+      <!-- Working Agreements -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <div class="section-header" style="margin-bottom:0">Working Agreements</div>
+          <button class="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors font-medium" onclick="navigate('settings', document.querySelector('[data-view=settings]'))">Edit thresholds →</button>
+        </div>
+        <div class="grid grid-cols-5 gap-3 mt-3">
+          <!-- Card 1: MR Reviewable Zone -->
+          <div class="card p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="text-[12px] font-medium text-zinc-300 leading-snug">MR Reviewable Zone</div>
+              <div class="status-dot status-dot-amber flex-shrink-0 mt-0.5"></div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-zinc-100 leading-none">71%</div>
+              <div class="text-[11px] text-zinc-500 mt-1">of MRs in zone · target &gt;80%</div>
+            </div>
+            <div class="badge badge-amber">Below target</div>
+            <svg class="sparkline" width="100%" height="24" viewBox="0 0 100 24">
+              <polyline points="0,18 20,14 40,20 60,12 80,10 100,8" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+              <circle cx="100" cy="8" r="2.5" fill="#f59e0b"/>
+            </svg>
+          </div>
+
+          <!-- Card 2: Review Turnaround -->
+          <div class="card p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="text-[12px] font-medium text-zinc-300 leading-snug">Review Turnaround</div>
+              <div class="status-dot status-dot-green flex-shrink-0 mt-0.5"></div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-zinc-100 leading-none">18h</div>
+              <div class="text-[11px] text-zinc-500 mt-1">avg time to first review · target &lt;24h</div>
+            </div>
+            <div class="badge badge-green">On target</div>
+            <svg class="sparkline" width="100%" height="24" viewBox="0 0 100 24">
+              <polyline points="0,20 20,16 40,12 60,14 80,10 100,8" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+              <circle cx="100" cy="8" r="2.5" fill="#4ade80"/>
+            </svg>
+          </div>
+
+          <!-- Card 3: Rework Rate -->
+          <div class="card p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="text-[12px] font-medium text-zinc-300 leading-snug">Rework Rate</div>
+              <div class="status-dot status-dot-green flex-shrink-0 mt-0.5"></div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-zinc-100 leading-none">11%</div>
+              <div class="text-[11px] text-zinc-500 mt-1">team avg · target &lt;15%</div>
+            </div>
+            <div class="badge badge-green">On target</div>
+            <svg class="sparkline" width="100%" height="24" viewBox="0 0 100 24">
+              <polyline points="0,8 20,10 40,6 60,12 80,9 100,14" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+              <circle cx="100" cy="14" r="2.5" fill="#4ade80"/>
+            </svg>
+          </div>
+
+          <!-- Card 4: MR-to-Ticket Link Rate -->
+          <div class="card p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="text-[12px] font-medium text-zinc-300 leading-snug">MR → Ticket Link Rate</div>
+              <div class="status-dot status-dot-amber flex-shrink-0 mt-0.5"></div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-zinc-100 leading-none">58%</div>
+              <div class="text-[11px] text-zinc-500 mt-1">linked to a ticket · target &gt;70%</div>
+            </div>
+            <div class="badge badge-amber">Below target</div>
+            <svg class="sparkline" width="100%" height="24" viewBox="0 0 100 24">
+              <polyline points="0,14 20,16 40,18 60,16 80,14 100,16" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+              <circle cx="100" cy="16" r="2.5" fill="#f59e0b"/>
+            </svg>
+          </div>
+
+          <!-- Card 5: Review Iterations -->
+          <div class="card p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="text-[12px] font-medium text-zinc-300 leading-snug">Review Iterations</div>
+              <div class="status-dot status-dot-green flex-shrink-0 mt-0.5"></div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-zinc-100 leading-none">1.4</div>
+              <div class="text-[11px] text-zinc-500 mt-1">avg rounds · target ≤2</div>
+            </div>
+            <div class="badge badge-green">On target</div>
+            <svg class="sparkline" width="100%" height="24" viewBox="0 0 100 24">
+              <polyline points="0,12 20,10 40,14 60,8 80,10 100,9" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+              <circle cx="100" cy="9" r="2.5" fill="#4ade80"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pipeline Health Charts + AI Panel -->
+      <div class="grid grid-cols-3 gap-5">
+        <!-- Cycle Time Chart -->
+        <div class="card p-5 col-span-1">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <div class="text-[13px] font-semibold text-zinc-200">Cycle Time Trend</div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">Team average · 2-week buckets</div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-bold text-zinc-100">6.1h</div>
+              <div class="text-[10px] text-green-400 font-medium">↓ 26% vs 4 sprints ago</div>
+            </div>
+          </div>
+          <canvas id="chart-cycle-time" height="140"></canvas>
+        </div>
+
+        <!-- Rework Rate Chart -->
+        <div class="card p-5 col-span-1">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <div class="text-[13px] font-semibold text-zinc-200">Rework Rate Trend</div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">Team average · 2-week buckets</div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-bold text-zinc-100">11%</div>
+              <div class="text-[10px] text-zinc-500 font-medium">Stable</div>
+            </div>
+          </div>
+          <canvas id="chart-rework" height="140"></canvas>
+        </div>
+
+        <!-- AI Panel -->
+        <div class="ai-panel p-5 col-span-1 flex flex-col gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-base leading-none" style="color: #c084fc;">✦</span>
+            <div class="text-[12px] font-semibold text-violet-300 uppercase tracking-wide">AI Patterns</div>
+          </div>
+          <div class="space-y-3 flex-1">
+            <p class="text-[12.5px] text-zinc-300 leading-relaxed">
+              Cycle time improved <span class="text-violet-300 font-semibold">26%</span> over the last 4 sprints — the team's strongest sustained improvement this quarter.
+            </p>
+            <p class="text-[12.5px] text-zinc-300 leading-relaxed">
+              Rework rate has been stable at 11–15%, suggesting consistent review quality.
+            </p>
+            <div class="border-t border-[#2d1f4e] pt-3">
+              <div class="flex items-start gap-2">
+                <div class="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></div>
+                <p class="text-[12px] text-zinc-400 leading-relaxed">
+                  <span class="text-amber-300 font-medium">Onur's session caching MR</span> has been open 31h and is oversized (847 lines). Consider a review or breakdown conversation.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 mt-auto">
+            <div class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse"></div>
+            <span class="text-[10px] text-zinc-600">Analyzed sprint data · Just now</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Work in Review -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <div class="section-header" style="margin-bottom:0">Work in Review <span class="text-zinc-600 normal-case font-normal" style="font-size:11px;letter-spacing:0">— 4 open MRs</span></div>
+          <button class="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors font-medium" onclick="navigate('mr-list', document.querySelector('[data-view=mr-list]'))">View all MRs →</button>
+        </div>
+        <div class="card overflow-hidden mt-3">
+          <!-- MR 1 -->
+          <div class="mr-row px-5 py-3.5 flex items-center gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <i data-lucide="git-pull-request" style="width:13px;height:13px;color:#6366f1;flex-shrink:0"></i>
+                <span class="text-[13px] font-medium text-zinc-200 truncate">feat: Add payment processing webhook handler</span>
+                <span class="badge badge-blue flex-shrink-0">IN ZONE</span>
+              </div>
+              <div class="flex items-center gap-3 text-[11.5px] text-zinc-500 ml-[21px]">
+                <span>Jan Reiners</span>
+                <span class="text-zinc-700">·</span>
+                <span>Open 6h</span>
+                <span class="text-zinc-700">·</span>
+                <span>234 lines</span>
+                <span class="text-zinc-700">·</span>
+                <span class="text-indigo-400">DISC-445</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- MR 2 -->
+          <div class="mr-row px-5 py-3.5 flex items-center gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <i data-lucide="git-pull-request" style="width:13px;height:13px;color:#6366f1;flex-shrink:0"></i>
+                <span class="text-[13px] font-medium text-zinc-200 truncate">chore: Update Datadog monitors for checkout flow</span>
+                <span class="badge badge-neutral flex-shrink-0">SMALL</span>
+              </div>
+              <div class="flex items-center gap-3 text-[11.5px] text-zinc-500 ml-[21px]">
+                <span>Sebastian Aretz</span>
+                <span class="text-zinc-700">·</span>
+                <span>Open 2h</span>
+                <span class="text-zinc-700">·</span>
+                <span>45 lines</span>
+                <span class="text-zinc-700">·</span>
+                <span class="text-indigo-400">DISC-432</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- MR 3: Oversized + unlinked — attention state -->
+          <div class="mr-row mr-row-oversized bg-[#0d0a00] px-5 py-3.5 flex items-center gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <i data-lucide="git-pull-request" style="width:13px;height:13px;color:#f59e0b;flex-shrink:0"></i>
+                <span class="text-[13px] font-medium text-amber-200 truncate">feat: Implement user session caching layer</span>
+                <span class="badge badge-oversized flex-shrink-0">OVERSIZED ⚠</span>
+                <span class="badge badge-amber flex-shrink-0">No ticket</span>
+              </div>
+              <div class="flex items-center gap-3 text-[11.5px] text-zinc-500 ml-[21px]">
+                <span class="text-amber-500">Onur Ulusoy</span>
+                <span class="text-zinc-700">·</span>
+                <span class="text-amber-400 font-medium">Open 31h ⚠</span>
+                <span class="text-zinc-700">·</span>
+                <span class="text-amber-400">847 lines</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- MR 4 -->
+          <div class="mr-row px-5 py-3.5 flex items-center gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <i data-lucide="git-pull-request" style="width:13px;height:13px;color:#6366f1;flex-shrink:0"></i>
+                <span class="text-[13px] font-medium text-zinc-200 truncate">fix: Resolve race condition in auth middleware</span>
+                <span class="badge badge-blue flex-shrink-0">IN ZONE</span>
+              </div>
+              <div class="flex items-center gap-3 text-[11.5px] text-zinc-500 ml-[21px]">
+                <span>Sebastian Aretz</span>
+                <span class="text-zinc-700">·</span>
+                <span>Open 4h</span>
+                <span class="text-zinc-700">·</span>
+                <span>112 lines</span>
+                <span class="text-zinc-700">·</span>
+                <span class="text-indigo-400">DISC-448</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sprint Delivery -->
+      <div>
+        <div class="section-header">Sprint Delivery</div>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="stat-card">
+            <div class="stat-label">Merged this Sprint</div>
+            <div class="stat-value">47</div>
+            <div class="stat-sub">Merge Requests</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Story Points Delivered</div>
+            <div class="stat-value">23.5 <span class="text-[18px] text-zinc-500">SP</span></div>
+            <div class="stat-sub">from 18 linked tickets</div>
+          </div>
+          <div class="stat-card" style="border-color: #78350f44;">
+            <div class="stat-label">Unpointed Tickets</div>
+            <div class="stat-value text-amber-400">6</div>
+            <div class="stat-sub">tickets have no SP estimate</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /px-8 -->
+  </div><!-- /view-team-health -->
+
+
+  <!-- ══════════════════════════════════ MR LIST VIEW ══════════════════════════════════ -->
+  <div id="view-mr-list" class="view fade-in">
+    <div class="px-8 pt-7 pb-6 border-b border-[#1a1a1e]">
+      <div class="page-title">Merge Requests</div>
+      <div class="page-subtitle">Sprint 24 · All merged and open MRs</div>
+    </div>
+    <div class="px-8 py-6">
+      <div class="card overflow-hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Merged</th>
+              <th>Size</th>
+              <th>Cycle Time</th>
+              <th>Ticket</th>
+            </tr>
+          </thead>
+          <tbody id="mr-table-body">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════ FEEDBACK THEMES VIEW ══════════════════════════════════ -->
+  <div id="view-feedback" class="view fade-in">
+    <div class="px-8 pt-7 pb-6 border-b border-[#1a1a1e]">
+      <div class="page-title">Feedback Themes</div>
+      <div class="page-subtitle">Based on 162 classified review comments · Sprint 24</div>
+    </div>
+    <div class="px-8 py-6 grid grid-cols-3 gap-6">
+      <div class="card p-6 col-span-2">
+        <div class="flex items-center justify-between mb-5">
+          <div class="text-[13px] font-semibold text-zinc-200">Comment Themes Distribution</div>
+          <span class="badge badge-neutral">162 comments total</span>
+        </div>
+        <canvas id="chart-feedback" height="220"></canvas>
+      </div>
+
+      <!-- AI Summary Panel -->
+      <div class="ai-panel p-5 flex flex-col gap-4">
+        <div class="flex items-center gap-2">
+          <span class="text-base leading-none" style="color: #c084fc;">✦</span>
+          <div class="text-[12px] font-semibold text-violet-300 uppercase tracking-wide">AI Summary</div>
+        </div>
+        <p class="text-[12.5px] text-zinc-300 leading-relaxed">
+          Architecture feedback appears in <span class="text-violet-300 font-semibold">47%</span> of Onur's MRs — primarily around service layer boundaries.
+        </p>
+        <p class="text-[12.5px] text-zinc-300 leading-relaxed">
+          This pattern has been <span class="text-zinc-200 font-medium">consistent for 4 sprints</span>, suggesting a potential learning opportunity around domain separation.
+        </p>
+        <div class="border-t border-[#2d1f4e] pt-3">
+          <div class="text-[11px] text-zinc-500 leading-relaxed">Performance feedback is up 8% vs last sprint. Correlates with the new caching work.</div>
+        </div>
+        <div class="flex items-center gap-1.5 mt-auto">
+          <div class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse"></div>
+          <span class="text-[10px] text-zinc-600">Pattern analysis · Sprint 24</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════ TRENDS VIEW ══════════════════════════════════ -->
+  <div id="view-trends" class="view fade-in">
+    <div class="px-8 pt-7 pb-6 border-b border-[#1a1a1e] flex items-center justify-between">
+      <div>
+        <div class="page-title">Trends</div>
+        <div class="page-subtitle">Team-level metrics over time · 8 sprint buckets</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <select class="select-field" id="trends-metric" onchange="updateTrendsChart()">
+          <option value="cycle">Cycle Time</option>
+          <option value="rework">Rework Rate</option>
+          <option value="size">Avg MR Size</option>
+        </select>
+        <button class="btn btn-ghost text-xs" onclick="addAnnotation()">
+          <i data-lucide="plus" style="width:12px;height:12px"></i>
+          Add annotation
+        </button>
+      </div>
+    </div>
+    <div class="px-8 py-6">
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <div class="text-[13px] font-semibold text-zinc-200" id="trends-title">Cycle Time · Team Aggregate</div>
+            <div class="text-[11px] text-zinc-500 mt-0.5">2-week sprint buckets</div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-1.5"><div class="w-3 h-0.5 bg-indigo-400 rounded"></div><span class="text-[11px] text-zinc-400">Team avg</span></div>
+          </div>
+        </div>
+        <canvas id="chart-trends" height="180"></canvas>
+        <div id="annotations-list" class="mt-4 space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════ SETTINGS / WORKING AGREEMENTS VIEW ══════════════════════════════════ -->
+  <div id="view-settings" class="view fade-in">
+    <div class="px-8 pt-7 pb-6 border-b border-[#1a1a1e]">
+      <div class="page-title">Working Agreements</div>
+      <div class="page-subtitle">Team-owned thresholds for pipeline health</div>
+    </div>
+
+    <div class="px-8 py-6 space-y-5">
+      <!-- Ownership note -->
+      <div class="rounded-lg bg-[#111113] border border-[#27272b] px-5 py-4 flex items-start gap-3">
+        <i data-lucide="users" style="width:15px;height:15px;color:#6366f1;flex-shrink:0;margin-top:1px"></i>
+        <div class="text-[12.5px] text-zinc-400 leading-relaxed">
+          <span class="text-zinc-200 font-medium">Working agreements are owned by the team.</span>
+          Changes reflect shared expectations and require team consensus. All changes are logged with author and timestamp.
+        </div>
+      </div>
+
+      <!-- Agreements Table -->
+      <div class="card overflow-hidden" id="wa-table">
+        <!-- Rows rendered by JS -->
+      </div>
+
+      <div class="text-[11px] text-zinc-600 flex items-center gap-1.5">
+        <i data-lucide="clock" style="width:11px;height:11px"></i>
+        Last team review: Apr 7, 2026 · Sprint 24 kickoff
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Toast notification -->
+<div id="toast" class="fixed bottom-6 right-6 z-50 opacity-0 pointer-events-none transition-all duration-200">
+  <div class="bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 flex items-center gap-2.5 shadow-xl">
+    <i data-lucide="check-circle-2" style="width:15px;height:15px;color:#4ade80"></i>
+    <span class="text-[13px] text-zinc-200" id="toast-msg">Saved</span>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────
+//  DATA CONSTANTS
+// ─────────────────────────────────────
+const TEAM = [
+  { name: 'Sebastian Aretz', role: 'Senior / Tech Lead', color: '#6366f1', initials: 'SA' },
+  { name: 'Jan Reiners',     role: 'Mid-level',           color: '#22d3ee', initials: 'JR' },
+  { name: 'Onur Ulusoy',    role: 'Mid-level',           color: '#f59e0b', initials: 'OU' },
+];
+
+const SPRINT_BUCKETS = ['S18', 'S19', 'S20', 'S21', 'S22', 'S23', 'S24(now)'];
+const SPRINT_BUCKETS_8 = ['S17', 'S18', 'S19', 'S20', 'S21', 'S22', 'S23', 'S24'];
+
+const CYCLE_TIME_DATA = [8.2, 7.1, 9.4, 6.8, 7.3, 6.1];
+const REWORK_DATA = [14, 12, 15, 11, 13, 11];
+const MR_SIZE_DATA = [312, 274, 395, 243, 288, 215];
+
+const TRENDS_DATA = {
+  cycle:  { data: [9.1, 8.2, 7.1, 9.4, 6.8, 7.3, 6.1, 6.1], unit: 'h',  color: '#6366f1', label: 'Cycle Time · Team Aggregate' },
+  rework: { data: [16, 14, 12, 15, 11, 13, 11, 11],           unit: '%',  color: '#f59e0b', label: 'Rework Rate · Team Aggregate' },
+  size:   { data: [380, 312, 274, 395, 243, 288, 215, 195],   unit: ' lines', color: '#22d3ee', label: 'Avg MR Size · Team Aggregate' },
+};
+
+const FEEDBACK_THEMES = [
+  { label: 'Architecture',   pct: 47, color: '#6366f1' },
+  { label: 'Schema / Data',  pct: 25, color: '#8b5cf6' },
+  { label: 'Performance',    pct: 32, color: '#22d3ee' },
+  { label: 'Testing',        pct: 26, color: '#0ea5e9' },
+  { label: 'Error Handling', pct: 17, color: '#f59e0b' },
+  { label: 'Security',       pct: 17, color: '#a78bfa' },
+  { label: 'Style / Format', pct: 12, color: '#71717a' },
+];
+
+const MR_LIST = [
+  { title: 'feat: Add payment processing webhook handler',        author: 'Jan Reiners',     date: 'Apr 18',  lines: 234, size: 'in-zone',   cycle: '5.2h',  ticket: 'DISC-445' },
+  { title: 'chore: Update Datadog monitors for checkout flow',    author: 'Sebastian Aretz', date: 'Apr 18',  lines: 45,  size: 'small',     cycle: '1.8h',  ticket: 'DISC-432' },
+  { title: 'fix: Resolve race condition in auth middleware',      author: 'Sebastian Aretz', date: 'Apr 17',  lines: 112, size: 'in-zone',   cycle: '3.1h',  ticket: 'DISC-448' },
+  { title: 'refactor: Extract payment service into module',       author: 'Jan Reiners',     date: 'Apr 16',  lines: 389, size: 'in-zone',   cycle: '8.4h',  ticket: 'DISC-421' },
+  { title: 'feat: Add retry logic to Stripe integration',         author: 'Onur Ulusoy',     date: 'Apr 15',  lines: 178, size: 'in-zone',   cycle: '4.7h',  ticket: 'DISC-418' },
+  { title: 'test: Increase coverage for auth service',            author: 'Jan Reiners',     date: 'Apr 14',  lines: 67,  size: 'small',     cycle: '2.3h',  ticket: 'DISC-415' },
+  { title: 'feat: Implement user session caching layer',          author: 'Onur Ulusoy',     date: 'Open',    lines: 847, size: 'oversized', cycle: '31h+',  ticket: '—' },
+  { title: 'fix: Correct tax calculation for EU regions',         author: 'Onur Ulusoy',     date: 'Apr 12',  lines: 223, size: 'in-zone',   cycle: '6.2h',  ticket: 'DISC-408' },
+];
+
+const WORKING_AGREEMENTS = [
+  {
+    id: 'mrzone',
+    name: 'MR Reviewable Zone',
+    description: 'Ensures MRs stay small enough for meaningful review without losing context.',
+    thresholdMin: 70,
+    thresholdMax: 553,
+    unit: 'lines',
+    display: '70–553 lines',
+    modifiedBy: 'Sebastian Aretz',
+    modifiedDate: 'Apr 7, 2026',
+    current: '71% in zone',
+    status: 'amber',
+  },
+  {
+    id: 'turnaround',
+    name: 'Review Turnaround',
+    description: 'Maximum time from MR opened to first substantive review.',
+    thresholdMin: null,
+    thresholdMax: 24,
+    unit: 'hours',
+    display: '<24h',
+    modifiedBy: 'Jan Reiners',
+    modifiedDate: 'Mar 24, 2026',
+    current: '18h avg',
+    status: 'green',
+  },
+  {
+    id: 'rework',
+    name: 'Rework Rate',
+    description: 'Percentage of MRs that require at least one push-after-approval (re-review needed).',
+    thresholdMin: null,
+    thresholdMax: 15,
+    unit: '%',
+    display: '<15%',
+    modifiedBy: 'Sebastian Aretz',
+    modifiedDate: 'Mar 24, 2026',
+    current: '11%',
+    status: 'green',
+  },
+  {
+    id: 'linkrate',
+    name: 'MR → Ticket Link Rate',
+    description: 'Minimum % of MRs that reference a tracked ticket in their description.',
+    thresholdMin: 70,
+    thresholdMax: null,
+    unit: '%',
+    display: '>70%',
+    modifiedBy: 'Onur Ulusoy',
+    modifiedDate: 'Apr 7, 2026',
+    current: '58%',
+    status: 'amber',
+  },
+  {
+    id: 'iterations',
+    name: 'Review Iterations',
+    description: 'Average number of review rounds per MR (push → review cycles).',
+    thresholdMin: null,
+    thresholdMax: 2,
+    unit: 'rounds',
+    display: '≤2 rounds',
+    modifiedBy: 'Sebastian Aretz',
+    modifiedDate: 'Mar 24, 2026',
+    current: '1.4 avg',
+    status: 'green',
+  },
+];
+
+const ANNOTATIONS = [];
+
+// ─────────────────────────────────────
+//  NAVIGATION
+// ─────────────────────────────────────
+function navigate(viewId, navEl) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const view = document.getElementById('view-' + viewId);
+  if (view) {
+    view.classList.add('active');
+    view.classList.remove('fade-in');
+    void view.offsetWidth;
+    view.classList.add('fade-in');
+  }
+  if (navEl) navEl.classList.add('active');
+  else {
+    const nav = document.querySelector('[data-view="' + viewId + '"]');
+    if (nav) nav.classList.add('active');
+  }
+  // Init charts on first show
+  if (viewId === 'feedback' && !window._feedbackChartInit) initFeedbackChart();
+  if (viewId === 'trends'   && !window._trendsChartInit)   initTrendsChart();
+  if (viewId === 'mr-list'  && !window._mrListInit)        initMRList();
+  if (viewId === 'settings' && !window._settingsInit)      initSettings();
+}
+
+// ─────────────────────────────────────
+//  CHART HELPERS
+// ─────────────────────────────────────
+const CHART_DEFAULTS = {
+  color: '#a1a1aa',
+  gridColor: '#1f1f23',
+  tickColor: '#52525b',
+};
+
+function makeLineDataset(label, data, color, fill = false) {
+  return {
+    label,
+    data,
+    borderColor: color,
+    backgroundColor: fill ? color + '22' : 'transparent',
+    borderWidth: 2,
+    tension: 0.35,
+    pointBackgroundColor: color,
+    pointBorderColor: '#0a0a0c',
+    pointBorderWidth: 2,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    fill,
+  };
+}
+
+function axisConfig(unit = '') {
+  return {
+    x: {
+      grid: { color: CHART_DEFAULTS.gridColor, drawBorder: false },
+      ticks: { color: CHART_DEFAULTS.tickColor, font: { size: 10, family: 'Inter' } },
+    },
+    y: {
+      grid: { color: CHART_DEFAULTS.gridColor, drawBorder: false },
+      ticks: {
+        color: CHART_DEFAULTS.tickColor,
+        font: { size: 10, family: 'Inter' },
+        callback: v => v + unit,
+      },
+      beginAtZero: false,
+    },
+  };
+}
+
+// ─────────────────────────────────────
+//  TEAM HEALTH CHARTS
+// ─────────────────────────────────────
+function initTeamHealthCharts() {
+  const labels = ['S18', 'S19', 'S20', 'S21', 'S22', 'S23'];
+
+  // Cycle Time
+  new Chart(document.getElementById('chart-cycle-time'), {
+    type: 'line',
+    data: { labels, datasets: [makeLineDataset('Avg Cycle Time', CYCLE_TIME_DATA, '#6366f1', true)] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.raw + 'h' } } },
+      scales: axisConfig('h'),
+    }
+  });
+
+  // Rework Rate
+  new Chart(document.getElementById('chart-rework'), {
+    type: 'line',
+    data: { labels, datasets: [makeLineDataset('Rework Rate', REWORK_DATA, '#f59e0b', true)] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.raw + '%' } } },
+      scales: axisConfig('%'),
+    }
+  });
+}
+
+// ─────────────────────────────────────
+//  FEEDBACK CHART
+// ─────────────────────────────────────
+function initFeedbackChart() {
+  window._feedbackChartInit = true;
+  const sorted = [...FEEDBACK_THEMES].sort((a, b) => b.pct - a.pct);
+  new Chart(document.getElementById('chart-feedback'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(t => t.label),
+      datasets: [{
+        data: sorted.map(t => t.pct),
+        backgroundColor: sorted.map(t => t.color + 'cc'),
+        borderColor: sorted.map(t => t.color),
+        borderWidth: 1,
+        borderRadius: 4,
+        barThickness: 22,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ' ' + c.raw + '% of MRs' } }
+      },
+      scales: {
+        x: {
+          grid: { color: CHART_DEFAULTS.gridColor },
+          ticks: { color: CHART_DEFAULTS.tickColor, font: { size: 10 }, callback: v => v + '%' },
+          max: 60,
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: '#a1a1aa', font: { size: 12, family: 'Inter' } },
+        }
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────
+//  TRENDS CHART
+// ─────────────────────────────────────
+let trendsChart;
+function initTrendsChart() {
+  window._trendsChartInit = true;
+  const metric = document.getElementById('trends-metric').value;
+  const d = TRENDS_DATA[metric];
+  trendsChart = new Chart(document.getElementById('chart-trends'), {
+    type: 'line',
+    data: { labels: SPRINT_BUCKETS_8, datasets: [makeLineDataset('Team avg', d.data, d.color, true)] },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ' ' + c.raw + d.unit } }
+      },
+      scales: axisConfig(d.unit),
+    }
+  });
+}
+
+function updateTrendsChart() {
+  const metric = document.getElementById('trends-metric').value;
+  const d = TRENDS_DATA[metric];
+  document.getElementById('trends-title').textContent = d.label;
+  if (trendsChart) {
+    trendsChart.data.datasets[0].data = d.data;
+    trendsChart.data.datasets[0].borderColor = d.color;
+    trendsChart.data.datasets[0].backgroundColor = d.color + '22';
+    trendsChart.data.datasets[0].pointBackgroundColor = d.color;
+    trendsChart.options.scales.y.ticks.callback = v => v + d.unit;
+    trendsChart.options.plugins.tooltip.callbacks.label = c => ' ' + c.raw + d.unit;
+    trendsChart.update();
+  }
+}
+
+function addAnnotation() {
+  const text = prompt('Enter annotation note (e.g. "Team offsite - reduced capacity"):');
+  if (!text) return;
+  ANNOTATIONS.push({ sprint: 'S' + (17 + ANNOTATIONS.length + 1), text });
+  const list = document.getElementById('annotations-list');
+  const el = document.createElement('div');
+  el.className = 'flex items-center gap-2 text-[11.5px] text-zinc-500';
+  el.innerHTML = `<i data-lucide="bookmark" style="width:11px;height:11px;color:#6366f1"></i><span class="text-indigo-400 font-medium">${ANNOTATIONS[ANNOTATIONS.length-1].sprint}</span><span>${text}</span>`;
+  list.appendChild(el);
+  lucide.createIcons({ nodes: [el] });
+  showToast('Annotation added');
+}
+
+// ─────────────────────────────────────
+//  MR LIST
+// ─────────────────────────────────────
+function initMRList() {
+  window._mrListInit = true;
+  const tbody = document.getElementById('mr-table-body');
+  tbody.innerHTML = MR_LIST.map(mr => {
+    const sizeBadge = {
+      'in-zone':   '<span class="badge badge-blue">IN ZONE</span>',
+      'small':     '<span class="badge badge-neutral">SMALL</span>',
+      'oversized': '<span class="badge badge-oversized">OVERSIZED</span>',
+    }[mr.size];
+    const ticketCol = mr.ticket === '—'
+      ? '<span class="text-amber-500 font-medium">— No ticket ⚠</span>'
+      : `<span class="text-indigo-400">${mr.ticket}</span>`;
+    const rowClass = mr.size === 'oversized' ? 'style="background:#0d0a00;border-left:2px solid #f59e0b;"' : '';
+    return `<tr ${rowClass}>
+      <td class="max-w-xs"><span class="text-zinc-200 font-medium text-[12.5px]">${mr.title}</span></td>
+      <td>${mr.author}</td>
+      <td>${mr.date === 'Open' ? '<span class="text-amber-400">Open</span>' : mr.date}</td>
+      <td>${sizeBadge} <span class="text-zinc-600 text-[11px] ml-1">${mr.lines}L</span></td>
+      <td class="${mr.cycle.includes('+') ? 'text-amber-400 font-medium' : ''}">${mr.cycle}</td>
+      <td>${ticketCol}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────
+//  SETTINGS / WORKING AGREEMENTS
+// ─────────────────────────────────────
+function initSettings() {
+  window._settingsInit = true;
+  renderWATable();
+}
+
+function renderWATable() {
+  const container = document.getElementById('wa-table');
+  container.innerHTML = WORKING_AGREEMENTS.map((wa, i) => {
+    const statusDot = {
+      amber:   'status-dot-amber',
+      green:   'status-dot-green',
+      neutral: 'status-dot-neutral',
+    }[wa.status];
+
+    const hasMin = wa.thresholdMin !== null;
+    const hasMax = wa.thresholdMax !== null;
+
+    const thresholdInputs = hasMin && hasMax
+      ? `<div class="flex items-center gap-1.5">
+           <input type="number" class="input-field" style="width:80px" value="${wa.thresholdMin}" data-wa="${i}" data-field="thresholdMin" onchange="updateWA(${i}, 'thresholdMin', this.value)" />
+           <span class="text-zinc-600 text-xs">–</span>
+           <input type="number" class="input-field" style="width:80px" value="${wa.thresholdMax}" data-wa="${i}" data-field="thresholdMax" onchange="updateWA(${i}, 'thresholdMax', this.value)" />
+           <span class="text-zinc-500 text-xs">${wa.unit}</span>
+         </div>`
+      : hasMax
+        ? `<div class="flex items-center gap-1.5">
+             <span class="text-zinc-500 text-xs">&lt;</span>
+             <input type="number" class="input-field" value="${wa.thresholdMax}" data-wa="${i}" data-field="thresholdMax" onchange="updateWA(${i}, 'thresholdMax', this.value)" />
+             <span class="text-zinc-500 text-xs">${wa.unit}</span>
+           </div>`
+        : `<div class="flex items-center gap-1.5">
+             <span class="text-zinc-500 text-xs">&gt;</span>
+             <input type="number" class="input-field" value="${wa.thresholdMin}" data-wa="${i}" data-field="thresholdMin" onchange="updateWA(${i}, 'thresholdMin', this.value)" />
+             <span class="text-zinc-500 text-xs">${wa.unit}</span>
+           </div>`;
+
+    return `<div class="wa-row">
+      <div class="flex items-center gap-2.5 w-[180px] flex-shrink-0">
+        <div class="status-dot ${statusDot}"></div>
+        <div>
+          <div class="text-[13px] font-semibold text-zinc-200">${wa.name}</div>
+        </div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-[12px] text-zinc-500">${wa.description}</div>
+      </div>
+      <div class="flex flex-col gap-1 items-start w-[200px] flex-shrink-0">
+        <div class="text-[10px] text-zinc-600 uppercase tracking-wide font-medium mb-0.5">Threshold</div>
+        ${thresholdInputs}
+      </div>
+      <div class="text-right w-[160px] flex-shrink-0">
+        <div class="text-[12px] text-zinc-200 font-medium" id="wa-current-${i}">${wa.current}</div>
+        <div class="text-[11px] text-zinc-600 mt-0.5">Current sprint value</div>
+        <div class="changed-badge mt-1">Changed by ${wa.modifiedBy}</div>
+        <div class="changed-badge">${wa.modifiedDate}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateWA(idx, field, value) {
+  WORKING_AGREEMENTS[idx][field] = parseFloat(value);
+  WORKING_AGREEMENTS[idx].modifiedBy = 'Sebastian Aretz';
+  WORKING_AGREEMENTS[idx].modifiedDate = 'Apr 20, 2026';
+  // Re-render to update provenance
+  renderWATable();
+  showToast('Working agreement updated');
+}
+
+// ─────────────────────────────────────
+//  TOAST
+// ─────────────────────────────────────
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  toast.style.opacity = '1';
+  toast.style.pointerEvents = 'auto';
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.pointerEvents = 'none';
+  }, 2400);
+}
+
+// ─────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  initTeamHealthCharts();
+});
+</script>
+</body>
+</html>

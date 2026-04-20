@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Engineering Analytics — Prototypes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #0a0a0c;
+      color: #e4e4e7;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+    .container { max-width: 880px; width: 100%; }
+    .header { margin-bottom: 48px; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #1c1425; border: 1px solid #4c1d95;
+      color: #a78bfa; font-size: 11px; font-weight: 500;
+      padding: 4px 10px; border-radius: 999px;
+      margin-bottom: 16px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    h1 { font-size: 28px; font-weight: 600; color: #fafafa; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: #71717a; line-height: 1.6; max-width: 560px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #111113;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 24px;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .card:hover { border-color: #3f3f46; background: #18181b; }
+    .card:hover::before { opacity: 1; }
+    .card-num {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .card h2 { font-size: 16px; font-weight: 600; color: #fafafa; margin-bottom: 6px; }
+    .card .desc { font-size: 13px; color: #71717a; line-height: 1.6; margin-bottom: 16px; }
+    .features { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .features li {
+      font-size: 12px; color: #a1a1aa;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .features li::before { content: '→'; color: #3f3f46; flex-shrink: 0; }
+    .open-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 20px;
+      font-size: 12px; font-weight: 500;
+      color: var(--accent);
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+    .card:hover .open-btn { opacity: 1; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="badge">✦ Discovery Prototypes</div>
+    <h1>Engineering Analytics Dashboard</h1>
+    <p class="subtitle">Four independent design directions for the team analytics tool. Each is a fully self-contained HTML file — click to open, no server needed.</p>
+  </div>
+
+  <div class="grid">
+    <a class="card" href="prototype-1-team-health.html" style="--accent: #6366f1">
+      <div class="card-num">Prototype 01</div>
+      <h2>Team Health + Working Agreements</h2>
+      <p class="desc">The landing page experience. Working agreements as interactive team-owned thresholds. Health status at a glance.</p>
+      <ul class="features">
+        <li>5-card working agreements widget with live editing</li>
+        <li>Pipeline health charts (cycle time + rework rate)</li>
+        <li>Work in Review with unlinked MR highlights</li>
+        <li>AI pattern detection panel</li>
+      </ul>
+      <div class="open-btn">Open prototype →</div>
+    </a>
+
+    <a class="card" href="prototype-2-mr-flow.html" style="--accent: #10b981">
+      <div class="card-num">Prototype 02</div>
+      <h2>MR Flow + Cycle Time Phases</h2>
+      <p class="desc">The work is the navigation. MR list as the hero view with segmented Coding→Pickup→Review phase bars.</p>
+      <ul class="features">
+        <li>Segmented cycle time bars per MR row</li>
+        <li>Slide-in MR detail panel with Gantt timeline</li>
+        <li>Working inline ticket linking (fully functional JS)</li>
+        <li>Live filter bar (author, size, link status)</li>
+      </ul>
+      <div class="open-btn">Open prototype →</div>
+    </a>
+
+    <a class="card" href="prototype-3-feedback-trends.html" style="--accent: #8b5cf6">
+      <div class="card-num">Prototype 03</div>
+      <h2>Feedback Intelligence + Trends</h2>
+      <p class="desc">The intelligence layer. Recurring comment categories with LLM audit trail and 2-week sprint-aligned trend graphs.</p>
+      <ul class="features">
+        <li>Horizontal bar chart with category drill-down</li>
+        <li>Classification audit trail (regex vs LLM confidence %)</li>
+        <li>Annotation markers on trend timeline</li>
+        <li>Team / Individual / Compare scope toggle</li>
+      </ul>
+      <div class="open-btn">Open prototype →</div>
+    </a>
+
+    <a class="card" href="prototype-4-ai-first.html" style="--accent: #f59e0b">
+      <div class="card-num">Prototype 04</div>
+      <h2>AI-First Complete App</h2>
+      <p class="desc">Full 6-view app with a persistent AI assistant panel. Pattern recognition, summaries, and a conversational interface woven throughout.</p>
+      <ul class="features">
+        <li>3-column layout: nav + content + AI panel</li>
+        <li>Chat interface with streaming response animation</li>
+        <li>Pre-scripted answers to key team questions</li>
+        <li>All 6 views: Overview, MR Flow, Feedback, Trends, Tickets, Settings</li>
+      </ul>
+      <div class="open-btn">Open prototype →</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>
