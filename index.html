@@ -139,6 +139,38 @@
       <div class="open-btn">Open prototype →</div>
     </a>
   </div>
+
+  <div style="margin-top: 32px; padding-top: 32px; border-top: 1px solid #27272a;">
+    <div class="badge" style="margin-bottom: 16px;">✦ Iteration 2 — Analytics Layer</div>
+    <p class="subtitle" style="margin-bottom: 24px;">Two competing approaches to the missing analytics view — outlier detection vs. longitudinal distribution. Built after UX audit identified that all v1 prototypes only showed averages, not variance.</p>
+    <div class="grid">
+      <a class="card" href="prototype-5-outlier-first.html" style="--accent: #ef4444">
+        <div class="card-num">Prototype 05</div>
+        <h2>Outlier-First Analytics</h2>
+        <p class="desc">Answers "what's unusual this sprint?" Box plots per engineer with individual MR dots. Statistical outliers (>1.5×IQR) shown as red dots — click any to drill into MR detail.</p>
+        <ul class="features">
+          <li>Custom canvas box plots with jitter-positioned MR dots</li>
+          <li>Outlier summary cards with statistical context</li>
+          <li>Sprint comparison table (median, p75, outlier count)</li>
+          <li>Universal drill-through: every dot → MR detail panel</li>
+        </ul>
+        <div class="open-btn">Open prototype →</div>
+      </a>
+
+      <a class="card" href="prototype-6-longitudinal.html" style="--accent: #34d399">
+        <div class="card-num">Prototype 06</div>
+        <h2>Longitudinal Distribution</h2>
+        <p class="desc">Answers "are we improving, and is it real?" A river of box plots — one per sprint bucket — showing both trend direction and variance over 8 sprints.</p>
+        <ul class="features">
+          <li>Box-plot time series (8 sprint buckets, custom canvas)</li>
+          <li>IQR shrinkage tint — tighter boxes glow emerald as variance drops</li>
+          <li>Annotation markers tied to behavior changes</li>
+          <li>Click any bucket → see that sprint's MRs</li>
+        </ul>
+        <div class="open-btn">Open prototype →</div>
+      </a>
+    </div>
+  </div>
 </div>
 </body>
 </html>

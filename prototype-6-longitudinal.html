@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engineering Analytics — Longitudinal Trends</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0b0b10; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; overflow-x: hidden; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0b0b10; }
+::-webkit-scrollbar-thumb { background: #20202c; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2d2d3d; }
+
+/* Layout */
+#sidebar { width: 220px; min-width: 220px; background: #0e0e14; border-right: 1px solid #20202c; height: 100vh; position: fixed; left: 0; top: 0; display: flex; flex-direction: column; z-index: 40; }
+#main-content { margin-left: 220px; min-height: 100vh; }
+
+/* Nav */
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 12px; border-radius: 6px; cursor: pointer; color: #64748b; font-size: 13px; font-weight: 500; transition: all 0.15s; margin: 1px 8px; }
+.nav-item:hover { background: #14141c; color: #cbd5e1; }
+.nav-item.active { background: #1a1a2e; color: #818cf8; }
+.nav-item svg { flex-shrink: 0; }
+.nav-badge { font-size: 10px; background: #20202c; color: #64748b; padding: 1px 6px; border-radius: 10px; margin-left: auto; }
+
+/* Views */
+.view { display: none; padding: 24px 28px; max-width: 1200px; }
+.view.active { display: block; }
+
+/* Buttons / Tabs */
+.tab-group { display: flex; background: #14141c; border: 1px solid #20202c; border-radius: 8px; padding: 3px; gap: 2px; }
+.tab-btn { padding: 5px 14px; font-size: 12px; font-weight: 500; border-radius: 5px; cursor: pointer; border: none; color: #64748b; background: transparent; transition: all 0.15s; white-space: nowrap; }
+.tab-btn:hover { color: #94a3b8; }
+.tab-btn.active { background: #20202c; color: #e2e8f0; }
+.tab-btn.active-indigo { background: #1e1b4b; color: #818cf8; }
+
+/* Cards */
+.card { background: #14141c; border: 1px solid #20202c; border-radius: 10px; }
+.card-header { padding: 14px 18px 12px; border-bottom: 1px solid #20202c; }
+.card-body { padding: 18px; }
+
+/* Chart canvas wrapper */
+.boxplot-canvas-wrap { position: relative; width: 100%; }
+
+/* Sprint diff table */
+.diff-table { width: 100%; border-collapse: collapse; }
+.diff-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #20202c; }
+.diff-table td { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #14141c; }
+.diff-table tr:last-child td { border-bottom: none; }
+.diff-good { color: #34d399; }
+.diff-bad { color: #fb7185; }
+.diff-neutral { color: #64748b; }
+
+/* Author avatars */
+.avatar { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+
+/* MR row in panels */
+.mr-row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #20202c; cursor: pointer; transition: background 0.1s; }
+.mr-row:hover { background: #1a1a24; }
+.mr-row:last-child { border-bottom: none; }
+
+/* Slide panel */
+#sprint-panel { position: fixed; top: 0; right: 0; width: 460px; height: 100vh; background: #0e0e14; border-left: 1px solid #20202c; z-index: 60; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; overflow: hidden; }
+#sprint-panel.open { transform: translateX(0); }
+#sprint-panel-scroll { flex: 1; overflow-y: auto; }
+#panel-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 59; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+#panel-backdrop.open { opacity: 1; pointer-events: all; }
+
+/* Detail panel */
+#detail-panel { position: fixed; top: 0; right: 0; width: 50%; height: 100vh; background: #0e0e14; border-left: 1px solid #20202c; z-index: 70; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; overflow: hidden; }
+#detail-panel.open { transform: translateX(0); }
+#detail-panel-scroll { flex: 1; overflow-y: auto; padding: 22px; }
+
+/* Cycle time bar */
+.cycle-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; flex: 1; min-width: 80px; }
+.seg-coding { background: #4f8cc9; }
+.seg-pickup { background: #a78bfa; }
+.seg-review { background: #f59e0b; }
+
+/* Gantt bar */
+.gantt-bar-wrap { display: flex; height: 26px; border-radius: 6px; overflow: hidden; width: 100%; }
+.gantt-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; }
+.gantt-seg span { padding: 0 6px; overflow: hidden; text-overflow: ellipsis; }
+.gantt-coding { background: #4f8cc9; }
+.gantt-pickup { background: #a78bfa; }
+.gantt-review { background: #f59e0b; }
+
+/* Comment card */
+.comment-card { background: #0b0b10; border: 1px solid #20202c; border-radius: 8px; padding: 12px 14px; }
+.comment-tag { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.tag-arch { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+.tag-perf { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.tag-style { background: rgba(52,211,153,0.15); color: #6ee7b7; }
+
+/* AI insight */
+.ai-panel { border-radius: 10px; background: linear-gradient(135deg, #0d0a1e 0%, #14141c 60%); border: 1px solid #4c1d95; position: relative; overflow: hidden; }
+.ai-panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, #7c3aed 30%, #a78bfa 50%, #7c3aed 70%, transparent); }
+
+/* Outlier alert */
+.outlier-card { background: rgba(251,113,133,0.08); border: 1px solid rgba(251,113,133,0.3); border-radius: 8px; padding: 12px 16px; }
+
+/* Size badge */
+.size-badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.size-small { background: #20202c; color: #64748b; }
+.size-inzone { background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.25); }
+.size-oversized { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.25); }
+
+/* Feedback bars */
+.fb-bar-wrap { height: 28px; border-radius: 4px; overflow: hidden; background: #14141c; cursor: pointer; }
+.fb-bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.85); transition: width 0.4s; white-space: nowrap; overflow: hidden; }
+
+/* Settings */
+.settings-input { width: 100%; background: #14141c; border: 1px solid #20202c; color: #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 13px; outline: none; transition: border-color 0.15s; }
+.settings-input:focus { border-color: #818cf8; }
+
+/* Toast */
+#toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; border: 1px solid #4c1d95; border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #a78bfa; z-index: 999; opacity: 0; transform: translateY(8px); transition: all 0.3s; pointer-events: none; }
+#toast.show { opacity: 1; transform: translateY(0); }
+
+/* Analytics box plot canvas */
+.analytics-canvas-wrap { position: relative; }
+
+/* Ticket chip */
+.ticket-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; background: #20202c; color: #7dd3fc; border: 1px solid #334155; cursor: default; white-space: nowrap; }
+.link-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 4px; font-size: 12px; font-weight: 500; background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.35); cursor: pointer; transition: all 0.15s; }
+.link-btn:hover { background: rgba(245,158,11,0.2); }
+
+/* Tighter IQR glow animation */
+@keyframes iqrGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } 50% { box-shadow: 0 0 8px 2px rgba(52,211,153,0.2); } }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="p-4" style="border-bottom:1px solid #20202c">
+    <div class="flex items-center gap-2">
+      <div style="width:30px;height:30px;border-radius:8px;background:rgba(129,140,248,0.15);border:1px solid rgba(129,140,248,0.3);display:flex;align-items:center;justify-content:center;">
+        <i data-lucide="activity" style="width:15px;height:15px;color:#818cf8;"></i>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#e2e8f0;line-height:1.2;">DevInsights</div>
+        <div style="font-size:11px;color:#475569;">Engineering Analytics</div>
+      </div>
+    </div>
+  </div>
+
+  <nav style="flex:1;padding:10px 0;overflow-y:auto;">
+    <div style="padding:0 12px 6px;font-size:10px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:.08em;">Analytics</div>
+    <div class="nav-item active" onclick="showView('trends')" id="nav-trends">
+      <i data-lucide="trending-up" style="width:15px;height:15px;"></i>
+      <span>Trends</span>
+      <span class="nav-badge">New</span>
+    </div>
+    <div class="nav-item" onclick="showView('analytics')" id="nav-analytics">
+      <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i>
+      <span>Analytics</span>
+    </div>
+    <div class="nav-item" onclick="showView('mrlist')" id="nav-mrlist">
+      <i data-lucide="git-pull-request" style="width:15px;height:15px;"></i>
+      <span>MR List</span>
+    </div>
+    <div class="nav-item" onclick="showView('feedback')" id="nav-feedback">
+      <i data-lucide="message-square" style="width:15px;height:15px;"></i>
+      <span>Feedback Themes</span>
+    </div>
+    <div style="padding:14px 12px 6px;font-size:10px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:.08em;">Config</div>
+    <div class="nav-item" onclick="showView('settings')" id="nav-settings">
+      <i data-lucide="settings" style="width:15px;height:15px;"></i>
+      <span>Settings</span>
+    </div>
+  </nav>
+
+  <div style="padding:12px 16px;border-top:1px solid #20202c;">
+    <div class="flex items-center gap-2">
+      <div class="avatar" style="background:rgba(129,140,248,0.2);color:#818cf8;">SA</div>
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:12px;font-weight:500;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Sebastian Aretz</div>
+        <div style="font-size:11px;color:#475569;">Tech Lead</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main Content -->
+<div id="main-content">
+
+<!-- ===================== TRENDS VIEW ===================== -->
+<div id="view-trends" class="view active">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between mb-5" style="flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">Team Trends</h1>
+      <p style="font-size:13px;color:#475569;margin-top:2px;">Distribution shape over time — are we improving, and is it real?</p>
+    </div>
+    <div style="font-size:11px;color:#475569;display:flex;align-items:center;gap:6px;margin-top:4px;">
+      <span style="display:inline-block;width:12px;height:2px;background:#f59e0b;border-radius:1px;"></span> Annotation event
+      <span style="display:inline-block;width:12px;height:2px;background:#6366f1;border-radius:1px;margin-left:6px;"></span> Team agreement
+    </div>
+  </div>
+
+  <!-- Control Bar -->
+  <div class="flex items-center gap-3 mb-5" style="flex-wrap:wrap;">
+    <!-- Metric selector -->
+    <div class="tab-group" id="metric-tabs">
+      <button class="tab-btn active" onclick="setMetric('cycletime', this)">Cycle Time</button>
+      <button class="tab-btn" onclick="setMetric('mrsize', this)">MR Size</button>
+      <button class="tab-btn" onclick="setMetric('iterations', this)">Review Iterations</button>
+      <button class="tab-btn" onclick="setMetric('rework', this)">Rework Rate</button>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <!-- View toggle -->
+      <div class="tab-group">
+        <button class="tab-btn active" id="view-dist-btn" onclick="setChartView('distribution')">Distribution</button>
+        <button class="tab-btn" id="view-line-btn" onclick="setChartView('line')">Line</button>
+      </div>
+      <!-- Time range -->
+      <div class="tab-group">
+        <button class="tab-btn" onclick="setRange('3m', this)">3 mo</button>
+        <button class="tab-btn active" onclick="setRange('6m', this)">6 mo</button>
+        <button class="tab-btn" onclick="setRange('all', this)">All</button>
+      </div>
+      <!-- Author toggle -->
+      <div class="tab-group">
+        <button class="tab-btn active" id="author-team-btn" onclick="setAuthorView('team')">Team</button>
+        <button class="tab-btn" id="author-per-btn" onclick="setAuthorView('per')">Per author</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero Chart Card -->
+  <div class="card mb-4">
+    <div class="card-header flex items-center justify-between">
+      <div>
+        <span style="font-size:14px;font-weight:600;color:#e2e8f0;" id="chart-title">Cycle Time — Distribution per Sprint</span>
+        <span style="font-size:12px;color:#475569;margin-left:10px;" id="chart-subtitle">Each box = full distribution for that sprint bucket. Tighter boxes = more consistent.</span>
+      </div>
+      <div style="font-size:11px;color:#475569;display:flex;align-items:center;gap:12px;">
+        <span style="display:inline-flex;align-items:center;gap:5px;"><span style="display:inline-block;width:14px;height:4px;background:#f8fafc;border-radius:2px;"></span>Median</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;"><span style="display:inline-block;width:14px;height:10px;background:#334155;border-radius:2px;"></span>IQR box</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;"><span style="display:inline-block;width:8px;height:8px;background:#fb7185;border-radius:50%;"></span>Outlier</span>
+      </div>
+    </div>
+    <div class="card-body" style="padding-bottom:10px;">
+      <div class="boxplot-canvas-wrap">
+        <canvas id="boxplot-canvas" height="340" style="width:100%;cursor:pointer;"></canvas>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:11px;color:#334155;" id="bucket-labels-row">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Sprint diff widget -->
+  <div class="card mb-4">
+    <div class="card-header flex items-center justify-between">
+      <span style="font-size:14px;font-weight:600;color:#e2e8f0;">Sprint Comparison</span>
+      <span style="font-size:12px;color:#475569;" id="diff-range-label">Jan W1 vs Jan W3</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <table class="diff-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th id="diff-col1">Jan W1</th>
+            <th id="diff-col2">Jan W3</th>
+            <th>Change</th>
+          </tr>
+        </thead>
+        <tbody id="diff-tbody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Insight strip -->
+  <div class="ai-panel" style="padding:14px 18px;margin-bottom:4px;">
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <div style="width:28px;height:28px;border-radius:6px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+        <i data-lucide="sparkles" style="width:14px;height:14px;color:#a78bfa;"></i>
+      </div>
+      <div style="font-size:13px;line-height:1.65;color:#c4b5fd;" id="trend-insight">
+        The IQR (box width) has shrunk by <strong>51%</strong> over 8 sprints — from 4.2h to 2.0h — indicating the team is getting <em>more consistent</em>, not just faster. The 98.3h outlier visible in Oct W1 (Onur: session caching) vanished after the Nov W3 breakdown approach. Click any box to see that sprint's MRs.
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-trends -->
+
+
+<!-- ===================== ANALYTICS VIEW ===================== -->
+<div id="view-analytics" class="view">
+  <div class="mb-5">
+    <h1 style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">Analytics — Current Sprint</h1>
+    <p style="font-size:13px;color:#475569;margin-top:2px;">Cycle time distribution per engineer — Jan W3</p>
+  </div>
+
+  <!-- Outlier alert -->
+  <div class="outlier-card mb-5 flex items-start gap-10px" style="gap:12px;">
+    <i data-lucide="alert-triangle" style="width:16px;height:16px;color:#fb7185;flex-shrink:0;margin-top:1px;"></i>
+    <div>
+      <div style="font-size:13px;font-weight:600;color:#fca5a5;margin-bottom:3px;">1 statistical outlier detected this sprint</div>
+      <div style="font-size:12px;color:#94a3b8;">Onur: "Implement user session caching" — 98.3h cycle time, 2.4σ above team median. Click the dot to review.</div>
+    </div>
+  </div>
+
+  <!-- Three box plots side by side -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;">
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;gap:8px;">
+        <div class="avatar" style="background:rgba(129,140,248,0.2);color:#818cf8;">SA</div>
+        <span style="font-size:13px;font-weight:600;color:#e2e8f0;">Sebastian</span>
+      </div>
+      <div class="card-body" style="padding:10px;">
+        <canvas id="analytics-sebastian" height="200"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;gap:8px;">
+        <div class="avatar" style="background:rgba(52,211,153,0.2);color:#34d399;">JK</div>
+        <span style="font-size:13px;font-weight:600;color:#e2e8f0;">Jan</span>
+      </div>
+      <div class="card-body" style="padding:10px;">
+        <canvas id="analytics-jan" height="200"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;gap:8px;">
+        <div class="avatar" style="background:rgba(251,191,36,0.2);color:#fbbf24;">OA</div>
+        <span style="font-size:13px;font-weight:600;color:#e2e8f0;">Onur</span>
+        <span style="font-size:11px;background:rgba(251,113,133,0.15);color:#fb7185;border:1px solid rgba(251,113,133,0.3);border-radius:4px;padding:1px 6px;margin-left:auto;">1 outlier</span>
+      </div>
+      <div class="card-body" style="padding:10px;">
+        <canvas id="analytics-onur" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Team Median</div>
+      <div style="font-size:24px;font-weight:700;color:#f1f5f9;letter-spacing:-0.5px;">3.8h</div>
+      <div style="font-size:11px;color:#34d399;margin-top:3px;">↓7% vs prev sprint</div>
+    </div>
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">P75</div>
+      <div style="font-size:24px;font-weight:700;color:#f1f5f9;letter-spacing:-0.5px;">5.2h</div>
+      <div style="font-size:11px;color:#34d399;margin-top:3px;">↓9% vs prev sprint</div>
+    </div>
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">IQR (consistency)</div>
+      <div style="font-size:24px;font-weight:700;color:#f1f5f9;letter-spacing:-0.5px;">2.0h</div>
+      <div style="font-size:11px;color:#34d399;margin-top:3px;">↓7% — tightening</div>
+    </div>
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Outliers</div>
+      <div style="font-size:24px;font-weight:700;color:#fb7185;letter-spacing:-0.5px;">1</div>
+      <div style="font-size:11px;color:#fb7185;margin-top:3px;">Onur: session caching</div>
+    </div>
+  </div>
+</div><!-- /view-analytics -->
+
+
+<!-- ===================== MR LIST VIEW ===================== -->
+<div id="view-mrlist" class="view">
+  <div class="flex items-start justify-between mb-5" style="flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">Merge Requests</h1>
+      <p style="font-size:13px;color:#475569;margin-top:2px;">Current sprint — Jan W3</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;">
+    <select id="filter-author" onchange="renderMRList()" style="background:#14141c;border:1px solid #20202c;color:#e2e8f0;border-radius:6px;padding:5px 26px 5px 10px;font-size:12px;cursor:pointer;appearance:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2364748b%22 stroke-width=%222%22%3E%3Cpath d=%22M6 9l6 6 6-6%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 8px center;outline:none;">
+      <option value="all">All authors</option>
+      <option value="sebastian">Sebastian</option>
+      <option value="jan">Jan</option>
+      <option value="onur">Onur</option>
+    </select>
+    <select id="filter-size-mr" onchange="renderMRList()" style="background:#14141c;border:1px solid #20202c;color:#e2e8f0;border-radius:6px;padding:5px 26px 5px 10px;font-size:12px;cursor:pointer;appearance:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2364748b%22 stroke-width=%222%22%3E%3Cpath d=%22M6 9l6 6 6-6%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 8px center;outline:none;">
+      <option value="all">All sizes</option>
+      <option value="small">Small &lt;70</option>
+      <option value="inzone">In Zone</option>
+      <option value="oversized">Oversized</option>
+    </select>
+    <div style="margin-left:auto;font-size:12px;color:#475569;" id="mr-stats-summary"></div>
+    <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#475569;background:#14141c;border:1px solid #20202c;border-radius:6px;padding:5px 10px;">
+      <span style="width:9px;height:9px;border-radius:2px;background:#4f8cc9;display:inline-block;"></span>Coding
+      <span style="width:9px;height:9px;border-radius:2px;background:#a78bfa;display:inline-block;margin-left:6px;"></span>Pickup
+      <span style="width:9px;height:9px;border-radius:2px;background:#f59e0b;display:inline-block;margin-left:6px;"></span>Review
+    </div>
+  </div>
+
+  <div class="card" style="overflow:hidden;">
+    <table style="width:100%;border-collapse:collapse;" id="mr-table">
+      <thead>
+        <tr style="border-bottom:1px solid #20202c;">
+          <th style="text-align:left;padding:9px 14px;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;min-width:260px;">Merge Request</th>
+          <th style="text-align:left;padding:9px 14px;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;min-width:100px;">Author</th>
+          <th style="text-align:left;padding:9px 14px;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;min-width:85px;">Size</th>
+          <th style="text-align:left;padding:9px 14px;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;min-width:180px;">Cycle Time</th>
+          <th style="text-align:left;padding:9px 14px;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;min-width:100px;">Ticket</th>
+        </tr>
+      </thead>
+      <tbody id="mr-tbody"></tbody>
+    </table>
+  </div>
+</div><!-- /view-mrlist -->
+
+
+<!-- ===================== FEEDBACK THEMES VIEW ===================== -->
+<div id="view-feedback" class="view">
+  <div class="mb-5">
+    <h1 style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">Feedback Themes</h1>
+    <p style="font-size:13px;color:#475569;margin-top:2px;">Review comment patterns — classified by AI + regex</p>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:18px;">
+    <button class="tab-btn active" onclick="setFeedbackScope('my', this)">My themes</button>
+    <button class="tab-btn" onclick="setFeedbackScope('team', this)">Team</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <!-- Bar chart -->
+    <div class="card">
+      <div class="card-header">
+        <span style="font-size:13px;font-weight:600;color:#e2e8f0;">Theme Distribution</span>
+        <span style="font-size:12px;color:#475569;margin-left:8px;">% of MRs affected</span>
+      </div>
+      <div class="card-body" style="padding:14px;">
+        <div id="feedback-bars" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+    </div>
+    <!-- Drill-down -->
+    <div class="card">
+      <div class="card-header">
+        <span style="font-size:13px;font-weight:600;color:#e2e8f0;" id="feedback-drill-title">Select a theme to drill down</span>
+      </div>
+      <div class="card-body" style="padding:14px;" id="feedback-drill-body">
+        <div style="color:#475569;font-size:13px;text-align:center;padding:40px 0;">Click a bar to see example comments</div>
+      </div>
+    </div>
+  </div>
+</div><!-- /view-feedback -->
+
+
+<!-- ===================== SETTINGS VIEW ===================== -->
+<div id="view-settings" class="view">
+  <div class="mb-5">
+    <h1 style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">Settings</h1>
+    <p style="font-size:13px;color:#475569;margin-top:2px;">Working agreements and dashboard preferences</p>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:860px;">
+    <div class="card">
+      <div class="card-header"><span style="font-size:13px;font-weight:600;color:#e2e8f0;">Working Agreements</span></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:5px;">Reviewable Zone — max lines per MR</label>
+          <input class="settings-input" type="number" value="553" id="s-max-lines" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:5px;">Target cycle time P75 (hours)</label>
+          <input class="settings-input" type="number" value="8" id="s-target-cycle" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:5px;">Max review iterations before escalation</label>
+          <input class="settings-input" type="number" value="2" id="s-max-rounds" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:5px;">Sprint duration (days)</label>
+          <input class="settings-input" type="number" value="14" id="s-sprint-days" />
+        </div>
+        <button onclick="saveSettings()" style="align-self:flex-start;background:#1e1b4b;color:#818cf8;border:1px solid #4c1d95;border-radius:6px;padding:7px 18px;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='#2d2a5e'" onmouseout="this.style.background='#1e1b4b'">Save changes</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="font-size:13px;font-weight:600;color:#e2e8f0;">Team Members</span></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#0b0b10;border-radius:8px;">
+          <div class="avatar" style="background:rgba(129,140,248,0.2);color:#818cf8;">SA</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#e2e8f0;">Sebastian Aretz</div><div style="font-size:11px;color:#475569;">Tech Lead · sebastian@company.io</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#0b0b10;border-radius:8px;">
+          <div class="avatar" style="background:rgba(52,211,153,0.2);color:#34d399;">JK</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#e2e8f0;">Jan Kowalski</div><div style="font-size:11px;color:#475569;">Senior Engineer · jan@company.io</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#0b0b10;border-radius:8px;">
+          <div class="avatar" style="background:rgba(251,191,36,0.2);color:#fbbf24;">OA</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#e2e8f0;">Onur Aydin</div><div style="font-size:11px;color:#475569;">Senior Engineer · onur@company.io</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /view-settings -->
+
+</div><!-- /main-content -->
+
+<!-- Sprint bucket slide-in panel -->
+<div id="panel-backdrop" onclick="closeSprintPanel()"></div>
+<div id="sprint-panel">
+  <div style="padding:16px 18px;border-bottom:1px solid #20202c;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <div>
+      <div style="font-size:14px;font-weight:600;color:#e2e8f0;" id="sprint-panel-title">Sprint MRs</div>
+      <div style="font-size:12px;color:#475569;" id="sprint-panel-sub"></div>
+    </div>
+    <button onclick="closeSprintPanel()" style="background:#14141c;border:1px solid #20202c;color:#64748b;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:4px;">
+      <i data-lucide="x" style="width:13px;height:13px;"></i> Close
+    </button>
+  </div>
+  <div id="sprint-panel-scroll" style="flex:1;overflow-y:auto;">
+    <div id="sprint-panel-body" style="padding:10px 0;"></div>
+  </div>
+</div>
+
+<!-- MR detail panel -->
+<div id="detail-panel">
+  <div style="padding:16px 18px;border-bottom:1px solid #20202c;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <div style="font-size:14px;font-weight:600;color:#e2e8f0;" id="detail-panel-title">MR Detail</div>
+    <button onclick="closeDetailPanel()" style="background:#14141c;border:1px solid #20202c;color:#64748b;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:4px;">
+      <i data-lucide="x" style="width:13px;height:13px;"></i> Close
+    </button>
+  </div>
+  <div id="detail-panel-scroll"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════
+
+const SPRINT_DATA = {
+  buckets: ['Oct W1', 'Oct W3', 'Nov W1', 'Nov W3', 'Dec W1', 'Dec W3', 'Jan W1', 'Jan W3'],
+  annotations: [
+    { bucket: 'Nov W3', label: 'Onur: breakdown approach', color: '#f59e0b' },
+    { bucket: 'Jan W1', label: 'Team: reviewable zone set', color: '#6366f1' }
+  ],
+  cycleTimeByBucket: [
+    [0.8, 1.2, 2.1, 3.4, 4.2, 5.6, 8.7, 22.1, 98.3],
+    [0.7, 1.1, 2.4, 3.1, 4.8, 6.2, 10.3, 18.4],
+    [0.9, 1.4, 2.8, 4.1, 6.7, 9.2, 14.1, 74.0],
+    [0.6, 1.2, 2.1, 3.5, 5.1, 7.8, 12.4],
+    [0.5, 1.0, 1.8, 3.2, 4.9, 6.8, 9.1],
+    [0.6, 0.9, 1.7, 2.9, 4.4, 6.1, 8.3],
+    [0.5, 0.8, 1.6, 2.8, 4.1, 5.7, 7.4],
+    [0.4, 0.7, 1.4, 2.6, 3.8, 5.2, 6.9]
+  ],
+  mrSizeByBucket: [
+    [23, 45, 89, 134, 189, 234, 312, 445, 623, 847],
+    [28, 56, 78, 123, 167, 245, 334, 512],
+    [34, 67, 89, 145, 189, 267, 389, 745],
+    [29, 52, 78, 112, 156, 234, 312, 445],
+    [34, 58, 89, 123, 178, 234, 312],
+    [28, 52, 78, 112, 156, 212, 289],
+    [31, 55, 82, 118, 163, 223, 298],
+    [26, 48, 74, 108, 152, 210, 278]
+  ],
+  iterationsByBucket: [
+    [1,1,2,2,3,3,4,5,6],
+    [1,1,2,2,3,3,4,5],
+    [1,2,2,3,3,4,5,7],
+    [1,1,2,2,3,3,4],
+    [1,1,1,2,2,3,3],
+    [1,1,1,2,2,3,3],
+    [1,1,1,2,2,3,3],
+    [1,1,1,2,2,2,3]
+  ],
+  reworkByBucket: [
+    [0,0,0,5,8,12,15,22,31],
+    [0,0,5,8,10,14,18,24],
+    [0,0,5,8,12,16,22,28],
+    [0,0,4,7,9,12,16],
+    [0,0,3,6,8,10,12],
+    [0,0,3,5,7,9,11],
+    [0,0,3,5,7,8,10],
+    [0,0,2,4,6,7,9]
+  ]
+};
+
+const CURRENT_SPRINT_MRS = [
+  { id: 's1', author: 'sebastian', title: 'chore: Update Datadog monitors', cycleHours: 0.7, lines: 45, reviewRounds: 1, coding: 0.4, pickup: 0.1, review: 0.2 },
+  { id: 's2', author: 'sebastian', title: 'refactor: Extract order service logic', cycleHours: 3.4, lines: 312, reviewRounds: 1, coding: 1.8, pickup: 0.4, review: 1.2 },
+  { id: 's3', author: 'sebastian', title: 'fix: Race condition in auth', cycleHours: 2.1, lines: 112, reviewRounds: 1, coding: 1.2, pickup: 0.3, review: 0.6 },
+  { id: 's4', author: 'sebastian', title: 'feat: Add search result caching', cycleHours: 1.8, lines: 189, reviewRounds: 1, coding: 1.0, pickup: 0.2, review: 0.6 },
+  { id: 's5', author: 'sebastian', title: 'feat: Implement cart price recalculation', cycleHours: 4.2, lines: 267, reviewRounds: 2, coding: 2.1, pickup: 0.5, review: 1.6 },
+  { id: 'j1', author: 'jan', title: 'feat: Add payment webhook handler', cycleHours: 5.6, lines: 234, reviewRounds: 1, coding: 2.8, pickup: 0.8, review: 2.0 },
+  { id: 'j2', author: 'jan', title: 'feat: Product recommendations API', cycleHours: 10.3, lines: 445, reviewRounds: 2, coding: 4.5, pickup: 1.2, review: 4.6 },
+  { id: 'j3', author: 'jan', title: 'fix: Null pointer in cart', cycleHours: 1.2, lines: 34, reviewRounds: 1, coding: 0.6, pickup: 0.2, review: 0.4 },
+  { id: 'j4', author: 'jan', title: 'feat: Shipping rate calculator', cycleHours: 8.7, lines: 312, reviewRounds: 2, coding: 3.8, pickup: 1.0, review: 3.9 },
+  { id: 'o1', author: 'onur', title: 'feat: Implement user session caching', cycleHours: 98.3, lines: 847, reviewRounds: 3, coding: 18, pickup: 12, review: 68.3, outlier: true },
+  { id: 'o2', author: 'onur', title: 'feat: Inventory availability endpoint', cycleHours: 22.1, lines: 623, reviewRounds: 2, coding: 8.0, pickup: 4.0, review: 10.1 },
+  { id: 'o3', author: 'onur', title: 'chore: Add Flyway migration', cycleHours: 4.1, lines: 28, reviewRounds: 1, coding: 2.0, pickup: 0.5, review: 1.6 },
+  { id: 'o4', author: 'onur', title: 'fix: Auth token refresh edge case', cycleHours: 18.4, lines: 156, reviewRounds: 2, coding: 6.0, pickup: 2.0, review: 10.4 },
+];
+
+const FEEDBACK_THEMES = [
+  { theme: 'Architectural concerns', pct: 68, color: '#818cf8', comments: [
+    { author: 'jan', text: 'This service coupling will make it hard to scale independently. Consider an event-driven approach here.', method: 'LLM', confidence: 92 },
+    { author: 'sebastian', text: 'The repository pattern is leaking domain logic. Extract to a domain service.', method: 'LLM', confidence: 88 },
+  ]},
+  { theme: 'Missing test coverage', pct: 54, color: '#34d399', comments: [
+    { author: 'jan', text: 'No unit tests for the edge case paths (null cart, expired token). These have caused prod incidents before.', method: 'regex', confidence: 99 },
+    { author: 'onur', text: 'Integration test for the webhook flow is missing.', method: 'regex', confidence: 97 },
+  ]},
+  { theme: 'Performance concerns', pct: 38, color: '#fbbf24', comments: [
+    { author: 'sebastian', text: 'N+1 query risk in the loop — use a bulk fetch or join.', method: 'LLM', confidence: 85 },
+    { author: 'jan', text: 'This cache key strategy will cause false hits across tenants.', method: 'LLM', confidence: 79 },
+  ]},
+  { theme: 'Code style / naming', pct: 31, color: '#f472b6', comments: [
+    { author: 'onur', text: 'Variable names like `tmp` and `data2` make this hard to follow. Please rename to express intent.', method: 'regex', confidence: 95 },
+  ]},
+  { theme: 'Documentation gaps', pct: 23, color: '#38bdf8', comments: [
+    { author: 'sebastian', text: 'The public API endpoint is missing an OpenAPI annotation. Other teams consume this.', method: 'regex', confidence: 99 },
+  ]},
+];
+
+const AUTHOR_COLORS = { sebastian: '#818cf8', jan: '#34d399', onur: '#fbbf24' };
+const AUTHOR_INITIALS = { sebastian: 'SA', jan: 'JK', onur: 'OA' };
+const AUTHOR_NAMES = { sebastian: 'Sebastian', jan: 'Jan', onur: 'Onur' };
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let currentMetric = 'cycletime';
+let currentChartView = 'distribution';
+let currentRange = '6m';
+let currentAuthorView = 'team';
+let feedbackScope = 'my';
+let boxplotCanvas = null;
+
+// ═══════════════════════════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════════════════════════
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'trends') drawBoxPlot();
+  if (name === 'analytics') drawAnalyticsBoxPlots();
+  if (name === 'mrlist') renderMRList();
+  if (name === 'feedback') renderFeedback();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOX PLOT MATH
+// ═══════════════════════════════════════════════════════════════
+function getBoxStats(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const n = sorted.length;
+  const q1 = percentile(sorted, 25);
+  const median = percentile(sorted, 50);
+  const q3 = percentile(sorted, 75);
+  const iqr = q3 - q1;
+  const lo = q1 - 1.5 * iqr;
+  const hi = q3 + 1.5 * iqr;
+  const whiskerLo = sorted.find(v => v >= lo) ?? sorted[0];
+  const whiskerHi = [...sorted].reverse().find(v => v <= hi) ?? sorted[n - 1];
+  const outliers = sorted.filter(v => v < lo || v > hi);
+  return { q1, median, q3, iqr, whiskerLo, whiskerHi, outliers };
+}
+
+function percentile(sorted, p) {
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// METRIC CONFIG
+// ═══════════════════════════════════════════════════════════════
+function getMetricData() {
+  switch (currentMetric) {
+    case 'cycletime': return { data: SPRINT_DATA.cycleTimeByBucket, unit: 'h', label: 'Cycle Time', yMax: null };
+    case 'mrsize': return { data: SPRINT_DATA.mrSizeByBucket, unit: ' lines', label: 'MR Size', yMax: null };
+    case 'iterations': return { data: SPRINT_DATA.iterationsByBucket, unit: ' rounds', label: 'Review Iterations', yMax: 8 };
+    case 'rework': return { data: SPRINT_DATA.reworkByBucket, unit: '%', label: 'Rework Rate', yMax: 35 };
+  }
+}
+
+function setMetric(m, btn) {
+  currentMetric = m;
+  document.querySelectorAll('#metric-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const cfg = getMetricData();
+  document.getElementById('chart-title').textContent = cfg.label + (currentChartView === 'distribution' ? ' — Distribution per Sprint' : ' — Median trend');
+  drawBoxPlot();
+  updateDiffWidget();
+}
+
+function setChartView(v) {
+  currentChartView = v;
+  document.getElementById('view-dist-btn').classList.toggle('active', v === 'distribution');
+  document.getElementById('view-line-btn').classList.toggle('active', v === 'line');
+  const cfg = getMetricData();
+  document.getElementById('chart-title').textContent = cfg.label + (v === 'distribution' ? ' — Distribution per Sprint' : ' — Median trend');
+  document.getElementById('chart-subtitle').textContent = v === 'distribution'
+    ? 'Each box = full distribution for that sprint bucket. Tighter boxes = more consistent.'
+    : 'Team median per sprint. Shaded area = IQR confidence band.';
+  drawBoxPlot();
+}
+
+function setRange(r, btn) {
+  currentRange = r;
+  document.querySelectorAll('.tab-group').forEach(g => {
+    if (g.contains(btn)) g.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  });
+  btn.classList.add('active');
+  drawBoxPlot();
+}
+
+function setAuthorView(v) {
+  currentAuthorView = v;
+  document.getElementById('author-team-btn').classList.toggle('active', v === 'team');
+  document.getElementById('author-per-btn').classList.toggle('active', v === 'per');
+  drawBoxPlot();
+}
+
+function getBuckets() {
+  const all = SPRINT_DATA.buckets;
+  if (currentRange === '3m') return all.slice(-4);
+  if (currentRange === '6m') return all;
+  return all;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HERO BOX PLOT DRAW
+// ═══════════════════════════════════════════════════════════════
+function drawBoxPlot() {
+  const canvas = document.getElementById('boxplot-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const buckets = getBuckets();
+  const firstIdx = SPRINT_DATA.buckets.indexOf(buckets[0]);
+  const cfg = getMetricData();
+  const allData = cfg.data.slice(firstIdx, firstIdx + buckets.length);
+
+  // Responsive sizing
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const W = rect.width || canvas.offsetWidth || 900;
+  const H = 340;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD_L = 52, PAD_R = 20, PAD_T = 44, PAD_B = 28;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+
+  // Compute all stats
+  const stats = allData.map(d => getBoxStats(d));
+
+  // Y scale
+  let yMax = Math.max(...allData.flat()) * 1.08;
+  if (cfg.yMax) yMax = cfg.yMax;
+  // Clamp outliers for visual — log-ish scale for cycle time
+  let useLog = currentMetric === 'cycletime' && yMax > 50;
+  if (useLog) yMax = 120;
+
+  function yToPixel(v) {
+    const clamped = Math.min(v, yMax);
+    return PAD_T + plotH - (clamped / yMax) * plotH;
+  }
+
+  // IQR shrinkage tint — compute range
+  const iqrs = stats.map(s => s.iqr);
+  const maxIqr = Math.max(...iqrs);
+  const minIqr = Math.min(...iqrs);
+
+  // Background grid
+  ctx.strokeStyle = '#1a1a24';
+  ctx.lineWidth = 1;
+  const gridLines = 5;
+  for (let i = 0; i <= gridLines; i++) {
+    const y = PAD_T + (plotH / gridLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, y);
+    ctx.lineTo(PAD_L + plotW, y);
+    ctx.stroke();
+    // Y label
+    const val = yMax - (yMax / gridLines) * i;
+    ctx.fillStyle = '#334155';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toFixed(val < 10 ? 1 : 0) + cfg.unit, PAD_L - 6, y + 3.5);
+  }
+
+  // Annotation vertical lines
+  SPRINT_DATA.annotations.forEach(ann => {
+    const bi = buckets.indexOf(ann.bucket);
+    if (bi < 0) return;
+    const bw = plotW / buckets.length;
+    const cx = PAD_L + bi * bw + bw / 2;
+    ctx.save();
+    ctx.strokeStyle = ann.color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(cx, PAD_T - 4);
+    ctx.lineTo(cx, PAD_T + plotH);
+    ctx.stroke();
+    ctx.restore();
+    // Label above
+    ctx.save();
+    ctx.font = '10px Inter, sans-serif';
+    ctx.fillStyle = ann.color;
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = 0.9;
+    const words = ann.label.split(' ');
+    const line1 = words.slice(0, 2).join(' ');
+    const line2 = words.slice(2).join(' ');
+    ctx.fillText(line1, cx, PAD_T - 22);
+    ctx.fillText(line2, cx, PAD_T - 11);
+    ctx.restore();
+  });
+
+  if (currentChartView === 'distribution') {
+    drawDistributionView(ctx, buckets, stats, yToPixel, plotW, plotH, PAD_L, PAD_T, cfg, iqrs, maxIqr, minIqr, W);
+  } else {
+    drawLineView(ctx, buckets, stats, yToPixel, plotW, plotH, PAD_L, PAD_T, cfg, W);
+  }
+
+  // Bucket x-axis labels
+  const labelsRow = document.getElementById('bucket-labels-row');
+  labelsRow.innerHTML = '';
+  const bw = plotW / buckets.length;
+  buckets.forEach((b, i) => {
+    const span = document.createElement('span');
+    span.style.cssText = `position:absolute;font-size:11px;color:#475569;text-align:center;width:${bw}px;left:${PAD_L + i * bw}px;top:0;transform:translateX(0);`;
+    span.textContent = b;
+    labelsRow.style.position = 'relative';
+    labelsRow.style.height = '18px';
+    labelsRow.appendChild(span);
+  });
+
+  // Store hit areas for click
+  canvas._hitAreas = stats.map((s, i) => ({
+    bucketIdx: firstIdx + i,
+    bucketLabel: buckets[i],
+    cx: PAD_L + i * bw + bw / 2,
+    bw,
+    PAD_L,
+    q1y: yToPixel(s.q1),
+    q3y: yToPixel(s.q3),
+    stats: s,
+    dataValues: allData[i]
+  }));
+}
+
+function drawDistributionView(ctx, buckets, stats, yToPixel, plotW, plotH, PAD_L, PAD_T, cfg, iqrs, maxIqr, minIqr) {
+  const bw = plotW / buckets.length;
+  const boxW = Math.min(bw * 0.52, 48);
+
+  stats.forEach((s, i) => {
+    const cx = PAD_L + i * bw + bw / 2;
+
+    // IQR shrinkage emerald tint
+    const shrinkFactor = maxIqr > minIqr ? 1 - (s.iqr - minIqr) / (maxIqr - minIqr) : 0;
+    const emeraldAlpha = shrinkFactor * 0.18;
+
+    // Box Q1→Q3
+    const boxTop = yToPixel(s.q3);
+    const boxBot = yToPixel(s.q1);
+    const boxH = Math.max(boxBot - boxTop, 2);
+
+    // Emerald tint for tight IQRs
+    if (emeraldAlpha > 0.05) {
+      ctx.save();
+      ctx.fillStyle = `rgba(52,211,153,${emeraldAlpha})`;
+      ctx.fillRect(cx - boxW / 2, boxTop, boxW, boxH);
+      ctx.restore();
+    }
+
+    // Box fill
+    ctx.fillStyle = '#1e2535';
+    ctx.fillRect(cx - boxW / 2, boxTop, boxW, boxH);
+
+    // Box border
+    ctx.strokeStyle = emeraldAlpha > 0.05 ? `rgba(52,211,153,${0.3 + emeraldAlpha})` : '#334155';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(cx - boxW / 2 + 0.5, boxTop + 0.5, boxW - 1, boxH - 1);
+
+    // Whisker lo
+    const whiskerLoY = yToPixel(s.whiskerLo);
+    const whiskerHiY = yToPixel(s.whiskerHi);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.2;
+    // Vertical whisker lines
+    ctx.beginPath();
+    ctx.moveTo(cx, boxBot);
+    ctx.lineTo(cx, whiskerLoY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, boxTop);
+    ctx.lineTo(cx, whiskerHiY);
+    ctx.stroke();
+    // Whisker caps
+    const capW = boxW * 0.42;
+    ctx.beginPath();
+    ctx.moveTo(cx - capW, whiskerLoY);
+    ctx.lineTo(cx + capW, whiskerLoY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - capW, whiskerHiY);
+    ctx.lineTo(cx + capW, whiskerHiY);
+    ctx.stroke();
+
+    // Median line
+    const medY = yToPixel(s.median);
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - boxW / 2, medY);
+    ctx.lineTo(cx + boxW / 2, medY);
+    ctx.stroke();
+
+    // Outlier dots
+    s.outliers.forEach(o => {
+      const oy = yToPixel(o);
+      ctx.beginPath();
+      ctx.arc(cx, oy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#fb7185';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(251,113,133,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Outlier value label
+      ctx.fillStyle = '#fb7185';
+      ctx.font = '9px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(o.toFixed(0) + cfg.unit, cx + 18, oy + 3);
+    });
+
+    // Median value label (subtle)
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.median.toFixed(1) + cfg.unit, cx, medY - 5);
+  });
+}
+
+function drawLineView(ctx, buckets, stats, yToPixel, plotW, plotH, PAD_L, PAD_T, cfg, W) {
+  const bw = plotW / buckets.length;
+  const points = stats.map((s, i) => ({
+    x: PAD_L + i * bw + bw / 2,
+    med: yToPixel(s.median),
+    q1: yToPixel(s.q1),
+    q3: yToPixel(s.q3)
+  }));
+
+  // IQR band
+  ctx.save();
+  ctx.beginPath();
+  points.forEach((p, i) => { i === 0 ? ctx.moveTo(p.x, p.q3) : ctx.lineTo(p.x, p.q3); });
+  [...points].reverse().forEach(p => ctx.lineTo(p.x, p.q1));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(51,65,85,0.35)';
+  ctx.fill();
+  ctx.restore();
+
+  // Median line (bezier)
+  ctx.save();
+  ctx.strokeStyle = '#f8fafc';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    if (i === 0) { ctx.moveTo(p.x, p.med); return; }
+    const prev = points[i - 1];
+    const cpx = (prev.x + p.x) / 2;
+    ctx.bezierCurveTo(cpx, prev.med, cpx, p.med, p.x, p.med);
+  });
+  ctx.stroke();
+  ctx.restore();
+
+  // Dots
+  points.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.med, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fill();
+    ctx.strokeStyle = '#0b0b10';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // Per-author lines if toggled
+  if (currentAuthorView === 'per') {
+    const authors = ['sebastian', 'jan', 'onur'];
+    const authorOffsets = { sebastian: -0.3, jan: 0, onur: 0.3 };
+    authors.forEach(a => {
+      const medians = buckets.map((b, i) => {
+        const base = stats[i].median;
+        return base + base * authorOffsets[a];
+      });
+      ctx.save();
+      ctx.strokeStyle = AUTHOR_COLORS[a];
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      medians.forEach((m, i) => {
+        const x = PAD_L + i * bw + bw / 2;
+        const y = yToPixel(m);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+}
+
+// Click handler for box plot
+document.getElementById('boxplot-canvas').addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const hits = this._hitAreas;
+  if (!hits) return;
+  const bw = hits[0] ? hits[0].bw : 0;
+  hits.forEach(h => {
+    if (mx >= h.cx - h.bw / 2 && mx <= h.cx + h.bw / 2) {
+      openSprintPanel(h.bucketLabel, h.dataValues, h.stats);
+    }
+  });
+});
+
+// Cursor on hover
+document.getElementById('boxplot-canvas').addEventListener('mousemove', function(e) {
+  const rect = this.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const hits = this._hitAreas;
+  if (!hits) return;
+  let over = false;
+  hits.forEach(h => { if (mx >= h.cx - h.bw / 2 && mx <= h.cx + h.bw / 2) over = true; });
+  this.style.cursor = over ? 'pointer' : 'default';
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SPRINT DIFF WIDGET
+// ═══════════════════════════════════════════════════════════════
+function updateDiffWidget() {
+  const buckets = getBuckets();
+  const n = buckets.length;
+  if (n < 2) return;
+  const cfg = getMetricData();
+  const allData = cfg.data;
+  const firstIdx = SPRINT_DATA.buckets.indexOf(buckets[0]);
+
+  const prev = getBoxStats(allData[firstIdx + n - 2]);
+  const curr = getBoxStats(allData[firstIdx + n - 1]);
+  const bPrev = buckets[n - 2], bCurr = buckets[n - 1];
+
+  document.getElementById('diff-range-label').textContent = bPrev + ' vs ' + bCurr;
+  document.getElementById('diff-col1').textContent = bPrev;
+  document.getElementById('diff-col2').textContent = bCurr;
+
+  const rows = [
+    { label: 'Median', a: prev.median, b: curr.median, fmt: v => v.toFixed(1) + cfg.unit, lowerIsBetter: true },
+    { label: 'P75 (Q3)', a: prev.q3, b: curr.q3, fmt: v => v.toFixed(1) + cfg.unit, lowerIsBetter: true },
+    { label: 'Outliers', a: prev.outliers.length, b: curr.outliers.length, fmt: v => v, lowerIsBetter: true },
+    { label: 'IQR (box width)', a: prev.iqr, b: curr.iqr, fmt: v => v.toFixed(1) + cfg.unit, lowerIsBetter: true, note: 'variance' },
+  ];
+
+  const tbody = document.getElementById('diff-tbody');
+  tbody.innerHTML = rows.map(r => {
+    const pctChange = r.a !== 0 ? ((r.b - r.a) / r.a * 100) : 0;
+    const improved = r.lowerIsBetter ? r.b < r.a : r.b > r.a;
+    const neutral = Math.abs(pctChange) < 0.5;
+    let changeText, changeClass;
+    if (neutral || r.a === r.b) {
+      changeText = '—'; changeClass = 'diff-neutral';
+    } else {
+      changeText = (pctChange > 0 ? '↑' : '↓') + Math.abs(pctChange).toFixed(0) + '%' + (improved ? ' ✓' : ' ✗');
+      changeClass = improved ? 'diff-good' : 'diff-bad';
+    }
+    const noteHtml = r.note ? `<span style="font-size:10px;color:#475569;margin-left:6px;">(${r.note} ${improved && !neutral ? 'shrinking ✓' : neutral ? 'stable' : 'growing ✗'})</span>` : '';
+    return `<tr>
+      <td style="color:#94a3b8;font-weight:500;">${r.label}${noteHtml}</td>
+      <td style="color:#64748b;">${r.fmt(r.a)}</td>
+      <td style="color:#e2e8f0;">${r.fmt(r.b)}</td>
+      <td class="${changeClass}" style="font-weight:600;">${changeText}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SPRINT PANEL
+// ═══════════════════════════════════════════════════════════════
+function openSprintPanel(label, values, stats) {
+  document.getElementById('sprint-panel-title').textContent = 'Sprint ' + label;
+  const cfg = getMetricData();
+  document.getElementById('sprint-panel-sub').textContent = cfg.label + ' distribution — ' + values.length + ' MRs';
+
+  // Build mock MR list for this bucket
+  const body = document.getElementById('sprint-panel-body');
+  const sorted = [...values].sort((a, b) => a - b);
+  const whiskerHi = stats.whiskerHi;
+
+  body.innerHTML = sorted.map((v, i) => {
+    const isOutlier = v > whiskerHi;
+    const mrIdx = i % CURRENT_SPRINT_MRS.length;
+    const mr = CURRENT_SPRINT_MRS[mrIdx];
+    return `<div class="mr-row" onclick="openDetailPanel('${mr.id}')">
+      <div class="avatar" style="background:rgba(${isOutlier ? '251,113,133' : '100,116,139'},0.15);color:${isOutlier ? '#fb7185' : '#64748b'};flex-shrink:0;">${isOutlier ? '!' : (i + 1)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:500;color:${isOutlier ? '#fca5a5' : '#cbd5e1'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">MR #${1200 + i + 1} · ${cfg.label}</div>
+        <div style="font-size:11px;color:#475569;margin-top:2px;">${v.toFixed(1)}${cfg.unit} cycle time${isOutlier ? ' · OUTLIER' : ''}</div>
+      </div>
+      <div style="font-size:11px;color:${isOutlier ? '#fb7185' : '#475569'};">${v.toFixed(1)}${cfg.unit}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('sprint-panel').classList.add('open');
+  document.getElementById('panel-backdrop').classList.add('open');
+}
+
+function closeSprintPanel() {
+  document.getElementById('sprint-panel').classList.remove('open');
+  document.getElementById('panel-backdrop').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ANALYTICS BOX PLOTS
+// ═══════════════════════════════════════════════════════════════
+function drawAnalyticsBoxPlots() {
+  const authorMrs = {
+    sebastian: CURRENT_SPRINT_MRS.filter(m => m.author === 'sebastian').map(m => m.cycleHours),
+    jan: CURRENT_SPRINT_MRS.filter(m => m.author === 'jan').map(m => m.cycleHours),
+    onur: CURRENT_SPRINT_MRS.filter(m => m.author === 'onur').map(m => m.cycleHours),
+  };
+  const maxY = 110;
+  ['sebastian', 'jan', 'onur'].forEach(a => {
+    drawSingleBoxPlot('analytics-' + a, authorMrs[a], AUTHOR_COLORS[a], maxY, a);
+  });
+}
+
+function drawSingleBoxPlot(canvasId, values, color, maxY, author) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth || 200;
+  const H = 200;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const s = getBoxStats(values);
+  const PAD_L = 42, PAD_R = 16, PAD_T = 12, PAD_B = 8;
+  const plotH = H - PAD_T - PAD_B;
+  const cx = (W - PAD_L - PAD_R) / 2 + PAD_L;
+  const boxW = 40;
+
+  function yp(v) { return PAD_T + plotH - Math.min(v, maxY) / maxY * plotH; }
+
+  // Grid lines
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD_T + plotH / 4 * i;
+    const v = maxY - maxY / 4 * i;
+    ctx.strokeStyle = '#1a1a24';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD_L - 4, y); ctx.lineTo(W - PAD_R, y); ctx.stroke();
+    ctx.fillStyle = '#334155';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(0) + 'h', PAD_L - 7, y + 3.5);
+  }
+
+  // Box
+  const boxTop = yp(s.q3), boxBot = yp(s.q1);
+  ctx.fillStyle = '#1e2535';
+  ctx.fillRect(cx - boxW / 2, boxTop, boxW, boxBot - boxTop);
+  ctx.strokeStyle = color + '66';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(cx - boxW / 2 + 0.5, boxTop + 0.5, boxW - 1, boxBot - boxTop - 1);
+
+  // Whiskers
+  const wloY = yp(s.whiskerLo), whiY = yp(s.whiskerHi);
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(cx, boxBot); ctx.lineTo(cx, wloY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, boxTop); ctx.lineTo(cx, whiY); ctx.stroke();
+  const cap = 12;
+  ctx.beginPath(); ctx.moveTo(cx - cap, wloY); ctx.lineTo(cx + cap, wloY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - cap, whiY); ctx.lineTo(cx + cap, whiY); ctx.stroke();
+
+  // Median
+  ctx.strokeStyle = '#f8fafc';
+  ctx.lineWidth = 2;
+  const medY = yp(s.median);
+  ctx.beginPath(); ctx.moveTo(cx - boxW / 2, medY); ctx.lineTo(cx + boxW / 2, medY); ctx.stroke();
+
+  // Outliers — clickable
+  s.outliers.forEach(o => {
+    const oy = yp(o);
+    ctx.beginPath();
+    ctx.arc(cx, oy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fb7185';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(251,113,133,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#fb7185';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(o.toFixed(1) + 'h', cx + 12, oy + 3.5);
+  });
+
+  // Median label
+  ctx.fillStyle = '#64748b';
+  ctx.font = '9px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('med ' + s.median.toFixed(1) + 'h', cx, medY - 5);
+
+  // Click → MR detail for outlier author
+  canvas._outlierY = s.outliers.map(o => yp(o));
+  canvas._author = author;
+  canvas.onclick = function(e) {
+    const r = canvas.getBoundingClientRect();
+    const my = (e.clientY - r.top) * dpr / dpr;
+    const outlierMr = CURRENT_SPRINT_MRS.find(m => m.author === author && m.outlier);
+    if (outlierMr) {
+      canvas._outlierY.forEach(oy => {
+        if (Math.abs(my - oy) < 14) openDetailPanel(outlierMr.id);
+      });
+      openDetailPanel(outlierMr.id);
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MR DETAIL PANEL
+// ═══════════════════════════════════════════════════════════════
+const DETAIL_DATA = {
+  o1: {
+    title: 'feat: Implement user session caching',
+    author: 'onur', authorInitials: 'OA', authorColor: '#fbbf24',
+    cycleHours: 98.3, lines: 847, files: 6, reviewRounds: 3, comments: 4,
+    coding: 18, pickup: 12, review: 68.3,
+    ticket: 'SHOP-1201',
+    reviewThread: [
+      { reviewer: 'Sebastian', tag: 'arch', text: 'The cache invalidation strategy here will cause stale data on session expiry. Need a TTL-based approach rather than explicit invalidation.', round: 1 },
+      { reviewer: 'Jan', tag: 'perf', text: 'Redis connection pool size is hardcoded. This should be configurable via env var and sized relative to expected concurrency.', round: 2 },
+      { reviewer: 'Sebastian', tag: 'arch', text: 'After the refactor this looks better, but the session serialization should be in a dedicated codec, not inline. Left a suggestion.', round: 3 },
+    ],
+    insight: "This MR's 98.3h cycle time is the only statistical outlier this sprint (2.4σ above team median of 3.8h). The Review phase accounts for 69% of total time — driven by 3 rounds of architectural feedback on cache invalidation strategy. Compare to Onur's own median: 4.1h. Consider breaking large feature MRs into interface + implementation to reduce review surface."
+  }
+};
+
+function openDetailPanel(mrId) {
+  const data = DETAIL_DATA[mrId] || buildGenericDetail(mrId);
+  const scroll = document.getElementById('detail-panel-scroll');
+  document.getElementById('detail-panel-title').textContent = 'MR Detail';
+
+  const total = data.coding + data.pickup + data.review;
+  const codPct = (data.coding / total * 100).toFixed(1);
+  const picPct = (data.pickup / total * 100).toFixed(1);
+  const revPct = (data.review / total * 100).toFixed(1);
+  const isOutlier = mrId === 'o1';
+
+  scroll.innerHTML = `
+    <div style="padding:22px;">
+      <!-- MR Header -->
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;">
+        <div class="avatar" style="background:rgba(${authorRgb(data.author)},0.2);color:${data.authorColor};width:36px;height:36px;font-size:12px;flex-shrink:0;">${data.authorInitials}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:600;color:#f1f5f9;line-height:1.3;margin-bottom:4px;">${data.title}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:${data.authorColor};">${AUTHOR_NAMES[data.author]}</span>
+            ${data.ticket ? `<span class="ticket-chip"><i data-lucide="link" style="width:10px;height:10px;"></i>${data.ticket}</span>` : `<button class="link-btn"><i data-lucide="link" style="width:10px;height:10px;"></i>Link ticket</button>`}
+            ${isOutlier ? `<span style="background:rgba(251,113,133,0.12);color:#fb7185;border:1px solid rgba(251,113,133,0.3);border-radius:4px;padding:1px 8px;font-size:11px;font-weight:600;">OUTLIER 2.4σ</span>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px;">
+        <div style="background:#1a1a24;border:1px solid #20202c;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:20px;font-weight:700;color:${isOutlier ? '#fb7185' : '#f1f5f9'};letter-spacing:-0.4px;">${data.cycleHours}h</div>
+          <div style="font-size:10px;color:#475569;margin-top:2px;">Cycle Time</div>
+        </div>
+        <div style="background:#1a1a24;border:1px solid #20202c;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">${data.lines}</div>
+          <div style="font-size:10px;color:#475569;margin-top:2px;">Lines</div>
+        </div>
+        <div style="background:#1a1a24;border:1px solid #20202c;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">${data.reviewRounds}</div>
+          <div style="font-size:10px;color:#475569;margin-top:2px;">Review rounds</div>
+        </div>
+        <div style="background:#1a1a24;border:1px solid #20202c;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;">${data.files}</div>
+          <div style="font-size:10px;color:#475569;margin-top:2px;">Files</div>
+        </div>
+      </div>
+
+      <!-- Cycle time Gantt -->
+      <div style="margin-bottom:18px;">
+        <div style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Cycle Time Breakdown</div>
+        <div class="gantt-bar-wrap">
+          <div class="gantt-seg gantt-coding" style="width:${codPct}%;"><span>Coding ${data.coding}h</span></div>
+          <div class="gantt-seg gantt-pickup" style="width:${picPct}%;"><span>Pickup ${data.pickup}h</span></div>
+          <div class="gantt-seg gantt-review" style="width:${revPct}%;"><span>Review ${data.review}h</span></div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:6px;">
+          <span style="font-size:11px;color:#4f8cc9;">■ Coding ${codPct}%</span>
+          <span style="font-size:11px;color:#a78bfa;">■ Pickup ${picPct}%</span>
+          <span style="font-size:11px;color:#f59e0b;">■ Review ${revPct}%</span>
+        </div>
+      </div>
+
+      <!-- Review thread -->
+      <div style="margin-bottom:18px;">
+        <div style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Review Thread (${data.reviewThread.length} comments)</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${data.reviewThread.map(c => `
+            <div class="comment-card">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-size:12px;font-weight:500;color:#cbd5e1;">${c.reviewer}</span>
+                <span class="comment-tag tag-${c.tag}">${c.tag === 'arch' ? 'Architecture' : c.tag === 'perf' ? 'Performance' : 'Style'}</span>
+                <span style="font-size:10px;color:#334155;margin-left:auto;">Round ${c.round}</span>
+              </div>
+              <div style="font-size:12px;color:#94a3b8;line-height:1.55;">${c.text}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- AI insight -->
+      <div class="ai-panel" style="padding:14px 16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <div style="width:22px;height:22px;border-radius:5px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i data-lucide="sparkles" style="width:12px;height:12px;color:#a78bfa;"></i>
+          </div>
+          <span style="font-size:12px;font-weight:600;color:#a78bfa;">AI Insight</span>
+        </div>
+        <div style="font-size:12px;line-height:1.65;color:#c4b5fd;">${data.insight}</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('detail-panel').classList.add('open');
+  lucide.createIcons();
+}
+
+function closeDetailPanel() {
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+function authorRgb(a) {
+  return { sebastian: '129,140,248', jan: '52,211,153', onur: '251,191,36' }[a] || '100,116,139';
+}
+
+function buildGenericDetail(id) {
+  const mr = CURRENT_SPRINT_MRS.find(m => m.id === id) || CURRENT_SPRINT_MRS[0];
+  return {
+    ...mr,
+    authorInitials: AUTHOR_INITIALS[mr.author],
+    authorColor: AUTHOR_COLORS[mr.author],
+    files: 3,
+    ticket: null,
+    reviewThread: [
+      { reviewer: 'Sebastian', tag: 'style', text: 'Minor naming nit: prefer descriptive names for local variables.', round: 1 }
+    ],
+    insight: `This MR's ${mr.cycleHours}h cycle time is within the normal range for this sprint (team median 3.8h).`
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MR LIST
+// ═══════════════════════════════════════════════════════════════
+function renderMRList() {
+  const author = document.getElementById('filter-author').value;
+  const sizeF = document.getElementById('filter-size-mr').value;
+  let mrs = CURRENT_SPRINT_MRS.filter(m => {
+    if (author !== 'all' && m.author !== author) return false;
+    if (sizeF === 'small' && m.lines >= 70) return false;
+    if (sizeF === 'inzone' && (m.lines < 70 || m.lines > 553)) return false;
+    if (sizeF === 'oversized' && m.lines <= 553) return false;
+    return true;
+  });
+
+  document.getElementById('mr-stats-summary').textContent = `${mrs.length} MRs · med ${median(mrs.map(m => m.cycleHours)).toFixed(1)}h cycle`;
+
+  const maxCycle = Math.max(...mrs.map(m => m.cycleHours));
+  const tbody = document.getElementById('mr-tbody');
+  tbody.innerHTML = mrs.map(mr => {
+    const total = mr.coding + mr.pickup + mr.review;
+    const codPct = mr.coding / total * 100;
+    const picPct = mr.pickup / total * 100;
+    const revPct = mr.review / total * 100;
+    const barWidth = Math.min((mr.cycleHours / maxCycle) * 100, 100);
+    const sizeLabel = mr.lines < 70 ? 'Small' : mr.lines <= 553 ? 'In Zone' : 'Oversized';
+    const sizeClass = mr.lines < 70 ? 'size-small' : mr.lines <= 553 ? 'size-inzone' : 'size-oversized';
+    const color = AUTHOR_COLORS[mr.author];
+    const initials = AUTHOR_INITIALS[mr.author];
+    return `<tr style="border-bottom:1px solid #1a1a24;cursor:pointer;" onclick="openDetailPanel('${mr.id}')" onmouseover="this.style.background='#14141c'" onmouseout="this.style.background=''">
+      <td style="padding:10px 14px;">
+        <div style="font-size:13px;font-weight:500;color:${mr.outlier ? '#fca5a5' : '#e2e8f0'};margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;">${mr.title}</div>
+        <div style="font-size:11px;color:#475569;">${mr.id.toUpperCase()} · ${mr.reviewRounds} review round${mr.reviewRounds > 1 ? 's' : ''}</div>
+      </td>
+      <td style="padding:10px 14px;">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <div class="avatar" style="background:rgba(${authorRgb(mr.author)},0.15);color:${color};width:22px;height:22px;font-size:9px;">${initials}</div>
+          <span style="font-size:12px;color:#94a3b8;">${AUTHOR_NAMES[mr.author]}</span>
+        </div>
+      </td>
+      <td style="padding:10px 14px;"><span class="size-badge ${sizeClass}">${mr.lines}L</span></td>
+      <td style="padding:10px 14px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;width:${barWidth}px;min-width:40px;max-width:120px;">
+            <div class="seg-coding" style="width:${codPct}%;"></div>
+            <div class="seg-pickup" style="width:${picPct}%;"></div>
+            <div class="seg-review" style="width:${revPct}%;"></div>
+          </div>
+          <span style="font-size:12px;color:${mr.outlier ? '#fb7185' : '#64748b'};white-space:nowrap;">${mr.cycleHours}h${mr.outlier ? ' ⚠' : ''}</span>
+        </div>
+      </td>
+      <td style="padding:10px 14px;">
+        ${mr.id === 'o1' || mr.id === 's2' ? `<span class="ticket-chip"><i data-lucide="link" style="width:10px;height:10px;"></i>SHOP-${1200 + parseInt(mr.id.slice(1))}</span>` : `<button class="link-btn" onclick="event.stopPropagation()"><i data-lucide="link" style="width:10px;height:10px;"></i>Link</button>`}
+      </td>
+    </tr>`;
+  }).join('');
+  lucide.createIcons();
+}
+
+function median(arr) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  return percentile(sorted, 50);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FEEDBACK
+// ═══════════════════════════════════════════════════════════════
+function renderFeedback() {
+  const container = document.getElementById('feedback-bars');
+  const maxPct = Math.max(...FEEDBACK_THEMES.map(t => t.pct));
+  container.innerHTML = FEEDBACK_THEMES.map((t, i) => `
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:12px;color:#94a3b8;">${t.theme}</span>
+        <span style="font-size:12px;font-weight:600;color:${t.color};">${t.pct}%</span>
+      </div>
+      <div class="fb-bar-wrap" onclick="drillFeedback(${i})" style="position:relative;">
+        <div class="fb-bar-fill" style="background:${t.color}22;border:1px solid ${t.color}44;width:${t.pct / maxPct * 100}%;border-radius:4px;">
+          <span style="color:${t.color};font-size:11px;">${t.pct}% of MRs</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setFeedbackScope(scope, btn) {
+  feedbackScope = scope;
+  document.querySelectorAll('#view-feedback .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function drillFeedback(idx) {
+  const t = FEEDBACK_THEMES[idx];
+  document.getElementById('feedback-drill-title').textContent = t.theme;
+  document.getElementById('feedback-drill-body').innerHTML = `
+    <div style="margin-bottom:12px;font-size:12px;color:#64748b;">${t.pct}% of MRs affected this sprint</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${t.comments.map(c => `
+        <div class="comment-card">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+            <div class="avatar" style="background:rgba(${authorRgb(c.reviewer.toLowerCase())},0.15);color:${AUTHOR_COLORS[c.reviewer.toLowerCase()] || '#64748b'};width:20px;height:20px;font-size:9px;">${AUTHOR_INITIALS[c.reviewer.toLowerCase()] || c.reviewer.slice(0,2).toUpperCase()}</div>
+            <span style="font-size:12px;font-weight:500;color:#cbd5e1;">${c.reviewer}</span>
+            <span style="font-size:10px;background:${c.method === 'LLM' ? 'rgba(129,140,248,0.15)' : 'rgba(52,211,153,0.1)'};color:${c.method === 'LLM' ? '#818cf8' : '#34d399'};border:1px solid ${c.method === 'LLM' ? 'rgba(129,140,248,0.3)' : 'rgba(52,211,153,0.25)'};border-radius:3px;padding:1px 6px;">[${c.method}]</span>
+            <span style="font-size:10px;color:#334155;margin-left:auto;">${c.confidence}% confidence</span>
+          </div>
+          <div style="font-size:12px;color:#94a3b8;line-height:1.55;">"${c.text}"</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════════
+function saveSettings() {
+  const toast = document.getElementById('toast');
+  toast.textContent = '✓ Working agreements saved';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  drawBoxPlot();
+  updateDiffWidget();
+  renderFeedback();
+  renderMRList();
+
+  // Redraw on resize
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const activeView = document.querySelector('.view.active');
+      if (activeView && activeView.id === 'view-trends') drawBoxPlot();
+      if (activeView && activeView.id === 'view-analytics') drawAnalyticsBoxPlots();
+    }, 150);
+  });
+});
+</script>
+</body>
+</html>

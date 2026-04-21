@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engineering Analytics — Outlier Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0f; color: #e4e4e7; font-family: 'Inter', system-ui, sans-serif; overflow-x: hidden; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #13131a; }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+/* Layout */
+#sidebar { width: 220px; min-width: 220px; height: 100vh; background: #13131a; border-right: 1px solid #1e1e28; display: flex; flex-direction: column; position: fixed; left: 0; top: 0; z-index: 50; }
+#main-content { margin-left: 220px; min-height: 100vh; }
+
+/* Nav */
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; color: #71717a; transition: all 0.12s; margin: 1px 8px; user-select: none; }
+.nav-item:hover { background: #1e1e28; color: #d4d4d8; }
+.nav-item.active { background: #1e1b2e; color: #818cf8; }
+.nav-item .nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* Views */
+.view { display: none; padding: 28px 32px; }
+.view.active { display: block; }
+
+/* Cards */
+.card { background: #13131a; border: 1px solid #1e1e28; border-radius: 10px; }
+
+/* Metric tabs / pills */
+.metric-pill { padding: 6px 14px; font-size: 12px; font-weight: 500; border-radius: 6px; cursor: pointer; border: 1px solid #1e1e28; color: #71717a; background: transparent; transition: all 0.12s; white-space: nowrap; }
+.metric-pill:hover { border-color: #3f3f46; color: #a1a1aa; }
+.metric-pill.active { background: #1e1b2e; border-color: #4338ca; color: #818cf8; }
+
+/* Box plot canvas */
+#boxplot-canvas { display: block; width: 100%; }
+
+/* Outlier card */
+.outlier-card { border: 1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.04); border-radius: 10px; padding: 16px 20px; }
+.outlier-card-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+
+/* Sprint comparison table */
+.sprint-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sprint-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #1e1e28; }
+.sprint-table td { padding: 10px 12px; border-bottom: 1px solid #1a1a22; }
+.sprint-table tr:last-child td { border-bottom: none; }
+.sprint-table tr:hover td { background: #1a1a22; }
+.delta-up { color: #f59e0b; }
+.delta-down { color: #10b981; }
+.delta-neutral { color: #71717a; }
+
+/* Avatar */
+.avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+
+/* MR Table */
+.mr-table { width: 100%; border-collapse: collapse; }
+.mr-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1e1e28; white-space: nowrap; }
+.mr-table td { padding: 11px 12px; border-bottom: 1px solid #1a1a22; font-size: 13px; vertical-align: middle; }
+.mr-table tbody tr { cursor: pointer; transition: background 0.1s; }
+.mr-table tbody tr:hover td { background: #1a1a22; }
+.mr-row-selected td { background: rgba(99,102,241,0.06) !important; }
+.mr-row-selected td:first-child { box-shadow: inset 3px 0 0 #6366f1; }
+
+/* Cycle time bar */
+.cycle-bar-container { display: flex; align-items: center; gap: 8px; }
+.cycle-bar { display: flex; height: 9px; border-radius: 5px; overflow: hidden; flex: 1; min-width: 100px; }
+.seg-coding { background: #4f8cc9; }
+.seg-pickup { background: #a78bfa; }
+.seg-review { background: #f59e0b; }
+.cycle-total { font-size: 12px; color: #71717a; white-space: nowrap; min-width: 38px; }
+
+/* Size badge */
+.size-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.size-small { background: #1e1e28; color: #71717a; }
+.size-inzone { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+.size-oversized { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+
+/* Status badge */
+.status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.status-merged { background: rgba(139,92,246,0.15); color: #a78bfa; }
+.status-open { background: rgba(16,185,129,0.15); color: #10b981; }
+
+/* Ticket chip */
+.ticket-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; background: #1e1e28; color: #79c0ff; border: 1px solid #1e1e28; cursor: default; white-space: nowrap; }
+.link-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.35); cursor: pointer; white-space: nowrap; transition: all 0.12s; }
+.link-btn:hover { background: rgba(245,158,11,0.22); }
+
+/* Filter selects */
+select.filter-select { background: #13131a; border: 1px solid #1e1e28; color: #d4d4d8; border-radius: 6px; padding: 6px 26px 6px 10px; font-size: 13px; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+select.filter-select:focus { outline: none; border-color: #6366f1; }
+
+/* Ticket popover */
+.ticket-popover { position: absolute; z-index: 200; background: #1a1a22; border: 1px solid #2e2e38; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); width: 300px; padding: 8px 0; }
+.ticket-popover input { width: calc(100% - 16px); background: #0a0a0f; border: 1px solid #2e2e38; border-radius: 6px; padding: 6px 10px; font-size: 13px; color: #e4e4e7; outline: none; margin: 4px 8px 8px; display: block; }
+.ticket-popover input:focus { border-color: #6366f1; }
+.ticket-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background 0.1s; }
+.ticket-option:hover { background: #1e1e28; }
+.ticket-key { font-size: 12px; font-weight: 600; color: #79c0ff; flex-shrink: 0; }
+.ticket-title-t { font-size: 12px; color: #d4d4d8; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Detail panel */
+#detail-panel { position: fixed; top: 0; right: 0; width: 50%; height: 100vh; background: #13131a; border-left: 1px solid #1e1e28; z-index: 60; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; overflow: hidden; }
+#detail-panel.open { transform: translateX(0); }
+#detail-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 59; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+#detail-backdrop.open { opacity: 1; pointer-events: all; }
+#detail-scroll { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* Gantt bars */
+.gantt-bar-wrap { display: flex; height: 26px; border-radius: 6px; overflow: hidden; width: 100%; }
+.gantt-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; }
+.gantt-seg span { padding: 0 6px; overflow: hidden; text-overflow: ellipsis; }
+.gantt-coding { background: #4f8cc9; }
+.gantt-pickup { background: #a78bfa; }
+.gantt-review { background: #f59e0b; }
+
+/* AI insight */
+.ai-insight { border-radius: 8px; padding: 14px 16px; background: linear-gradient(135deg, rgba(124,58,237,0.08), rgba(139,92,246,0.12)); border: 1px solid rgba(124,58,237,0.35); position: relative; overflow: hidden; }
+.ai-insight::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, #7c3aed, #a78bfa, #7c3aed); }
+
+/* Comment thread */
+.comment-card { background: #0f0f16; border: 1px solid #1e1e28; border-radius: 8px; padding: 12px 14px; }
+.comment-tag { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.tag-arch { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+.tag-perf { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.tag-test { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+
+/* Feedback view bars */
+.fb-bar-bg { height: 8px; background: #1e1e28; border-radius: 4px; overflow: hidden; flex: 1; }
+.fb-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+
+/* Drill panel */
+.drill-panel { border: 1px solid #1e1e28; border-radius: 10px; background: #0f0f16; overflow: hidden; }
+.drill-panel-header { padding: 12px 16px; background: #13131a; border-bottom: 1px solid #1e1e28; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.1s; }
+.drill-panel-header:hover { background: #1a1a22; }
+
+/* Badge */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.badge-regex { background: #1e1b2e; color: #818cf8; border: 1px solid #312e81; }
+.badge-llm { background: #1e1b2e; color: #c4b5fd; border: 1px solid #4c1d95; }
+
+/* Stat card */
+.stat-card { background: #13131a; border: 1px solid #1e1e28; border-radius: 8px; padding: 16px 20px; }
+.stat-value { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; color: #fafafa; }
+.stat-label { font-size: 11px; color: #52525b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+
+/* Working agreements */
+.wa-row { border-bottom: 1px solid #1a1a22; padding: 14px 20px; display: flex; align-items: center; gap: 14px; transition: background 0.1s; }
+.wa-row:last-child { border-bottom: none; }
+.wa-row:hover { background: #1a1a22; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-green { background: #22c55e; box-shadow: 0 0 5px #22c55e66; }
+.status-amber { background: #f59e0b; box-shadow: 0 0 5px #f59e0b66; }
+.status-red { background: #ef4444; box-shadow: 0 0 5px #ef444466; }
+
+/* Pulsing outlier dot */
+@keyframes outlier-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.15); }
+}
+.outlier-pulse { animation: outlier-pulse 2s ease-in-out infinite; }
+
+/* Toast */
+#toast { position: fixed; bottom: 24px; right: 24px; background: #1e1e28; border: 1px solid #2e2e38; border-radius: 8px; padding: 12px 18px; font-size: 13px; color: #d4d4d8; z-index: 999; opacity: 0; transform: translateY(8px); transition: all 0.25s; pointer-events: none; }
+#toast.show { opacity: 1; transform: translateY(0); }
+
+/* Phase legend pill */
+.phase-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #71717a; }
+.phase-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+/* Unlinked banner */
+.unlinked-banner { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); border-radius: 8px; padding: 8px 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: background 0.12s; }
+.unlinked-banner:hover { background: rgba(245,158,11,0.13); }
+
+/* Settings */
+.settings-input { background: #0a0a0f; border: 1px solid #1e1e28; color: #d4d4d8; border-radius: 6px; padding: 6px 10px; font-size: 13px; width: 100%; }
+.settings-input:focus { outline: none; border-color: #6366f1; }
+.settings-row { border-bottom: 1px solid #1a1a22; padding: 14px 20px; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; align-items: center; }
+.settings-row:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div style="padding:16px;border-bottom:1px solid #1e1e28">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:28px;height:28px;border-radius:7px;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);display:flex;align-items:center;justify-content:center">
+        <i data-lucide="bar-chart-3" style="width:14px;height:14px;color:#818cf8"></i>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#f4f4f5;line-height:1.2">DevInsights</div>
+        <div style="font-size:11px;color:#52525b">Engineering Analytics</div>
+      </div>
+    </div>
+  </div>
+
+  <nav style="flex:1;padding:10px 0;overflow-y:auto">
+    <div style="padding:6px 16px 4px;font-size:10px;font-weight:600;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em">Analytics</div>
+    <div class="nav-item active" onclick="showView('analytics')" id="nav-analytics">
+      <i data-lucide="activity" class="nav-icon"></i>
+      <span>Analytics</span>
+    </div>
+    <div class="nav-item" onclick="showView('mr-list')" id="nav-mr-list">
+      <i data-lucide="git-pull-request" class="nav-icon"></i>
+      <span>MR List</span>
+    </div>
+    <div class="nav-item" onclick="showView('feedback')" id="nav-feedback">
+      <i data-lucide="message-square" class="nav-icon"></i>
+      <span>Feedback Themes</span>
+    </div>
+    <div class="nav-item" onclick="showView('health')" id="nav-health">
+      <i data-lucide="heart-pulse" class="nav-icon"></i>
+      <span>Team Health</span>
+    </div>
+    <div style="padding:10px 16px 4px;margin-top:4px;font-size:10px;font-weight:600;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em;border-top:1px solid #1a1a22">Settings</div>
+    <div class="nav-item" onclick="showView('settings')" id="nav-settings">
+      <i data-lucide="settings-2" class="nav-icon"></i>
+      <span>Settings</span>
+    </div>
+  </nav>
+
+  <div style="padding:14px 16px;border-top:1px solid #1e1e28">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="avatar" style="width:28px;height:28px;background:rgba(99,102,241,0.2);color:#a5b4fc;font-size:10px">SA</div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:12px;font-weight:500;color:#e4e4e7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Sebastian Aretz</div>
+        <div style="font-size:11px;color:#52525b">Tech Lead</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main content -->
+<div id="main-content">
+
+<!-- ===================== ANALYTICS VIEW ===================== -->
+<div id="view-analytics" class="view active">
+  <div style="max-width:1200px">
+    <!-- Header -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h1 style="font-size:20px;font-weight:600;color:#fafafa;letter-spacing:-0.3px">Analytics</h1>
+        <p style="font-size:13px;color:#52525b;margin-top:2px">What's unusual this sprint that we should talk about?</p>
+      </div>
+      <div style="font-size:12px;color:#52525b;background:#13131a;border:1px solid #1e1e28;border-radius:6px;padding:5px 10px">Apr 7 – Apr 21, 2026</div>
+    </div>
+
+    <!-- Metric selector -->
+    <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+      <button class="metric-pill active" onclick="setMetric('cycle')" id="pill-cycle">Cycle Time</button>
+      <button class="metric-pill" onclick="setMetric('size')" id="pill-size">MR Size</button>
+      <button class="metric-pill" onclick="setMetric('reviews')" id="pill-reviews">Review Iterations</button>
+      <button class="metric-pill" onclick="setMetric('rework')" id="pill-rework">Rework</button>
+    </div>
+
+    <!-- Hero: Box Plot Card -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="padding:18px 22px 14px;border-bottom:1px solid #1e1e28;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#fafafa" id="chart-title">Cycle Time Distribution — Current Sprint</div>
+          <div style="font-size:12px;color:#52525b;margin-top:2px" id="chart-subtitle">Each dot = one MR. Box shows IQR. Red dots are statistical outliers (&gt;1.5×IQR)</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#71717a">
+            <div style="width:8px;height:8px;border-radius:50%;background:#ef4444"></div>
+            Outlier (&gt;1.5×IQR)
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#71717a">
+            <div style="width:8px;height:8px;border-radius:50%;background:#6366f1;opacity:0.6"></div>
+            MR dot
+          </div>
+        </div>
+      </div>
+      <div style="padding:20px 22px;position:relative">
+        <canvas id="boxplot-canvas" height="320"></canvas>
+        <div id="dot-tooltip" style="position:absolute;pointer-events:none;display:none;background:#1a1a22;border:1px solid #2e2e38;border-radius:8px;padding:10px 13px;font-size:12px;z-index:100;min-width:180px;max-width:260px;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+      </div>
+    </div>
+
+    <!-- Outlier summary cards -->
+    <div id="outlier-cards" style="margin-bottom:16px"></div>
+
+    <!-- Sprint comparison -->
+    <div class="card">
+      <div style="padding:16px 22px 12px;border-bottom:1px solid #1e1e28;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:14px;font-weight:600;color:#fafafa">Sprint Comparison</div>
+        <div style="font-size:12px;color:#52525b" id="sprint-compare-label">Cycle Time — last sprint vs this sprint</div>
+      </div>
+      <div style="padding:16px 22px">
+        <table class="sprint-table">
+          <thead>
+            <tr>
+              <th style="color:#52525b"></th>
+              <th>Last Sprint</th>
+              <th>This Sprint</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody id="sprint-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div><!-- /analytics -->
+
+
+<!-- ===================== MR LIST VIEW ===================== -->
+<div id="view-mr-list" class="view">
+  <div style="max-width:1200px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <h1 style="font-size:20px;font-weight:600;color:#fafafa">Merge Requests</h1>
+        <p style="font-size:13px;color:#52525b;margin-top:2px">MR-centric workflow overview — last 2 weeks</p>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px">
+      <select id="filter-range" class="filter-select" onchange="applyFilters()">
+        <option value="2w">Last 2 weeks</option>
+        <option value="1m">Last month</option>
+        <option value="3m">Last 3 months</option>
+      </select>
+      <select id="filter-size" class="filter-select" onchange="applyFilters()">
+        <option value="all">All sizes</option>
+        <option value="small">Small &lt;70</option>
+        <option value="inzone">In Zone 70–553</option>
+        <option value="oversized">Oversized &gt;553</option>
+      </select>
+      <select id="filter-author" class="filter-select" onchange="applyFilters()">
+        <option value="all">All authors</option>
+        <option value="sebastian">Sebastian</option>
+        <option value="jan">Jan</option>
+        <option value="onur">Onur</option>
+      </select>
+      <select id="filter-link" class="filter-select" onchange="applyFilters()">
+        <option value="all">All link status</option>
+        <option value="linked">Linked</option>
+        <option value="unlinked">Unlinked</option>
+      </select>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#71717a;background:#13131a;border:1px solid #1e1e28;border-radius:6px;padding:6px 10px">
+          <div class="phase-dot" style="background:#4f8cc9"></div><span>Coding</span>
+          <div class="phase-dot" style="background:#a78bfa;margin-left:6px"></div><span>Pickup</span>
+          <div class="phase-dot" style="background:#f59e0b;margin-left:6px"></div><span>Review</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats + unlinked banner -->
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="font-size:13px;color:#71717a" id="mr-stats-line"></div>
+      <div id="unlinked-banner" class="unlinked-banner" style="margin-left:auto" onclick="toggleUnlinkedHighlight()">
+        <i data-lucide="alert-triangle" style="width:14px;height:14px;color:#f59e0b;flex-shrink:0"></i>
+        <span style="font-size:13px;font-weight:500;color:#fcd34d"><span id="unlinked-count">0</span> need ticket links</span>
+        <i data-lucide="chevron-right" style="width:14px;height:14px;color:#f59e0b60;margin-left:2px"></i>
+      </div>
+    </div>
+
+    <div class="card" style="overflow:hidden">
+      <div style="overflow-x:auto">
+        <table class="mr-table">
+          <thead>
+            <tr>
+              <th style="min-width:280px">Merge Request</th>
+              <th style="min-width:110px">Author</th>
+              <th style="min-width:90px">Size</th>
+              <th style="min-width:190px">Cycle Time</th>
+              <th style="min-width:130px">Ticket</th>
+              <th style="min-width:80px">Status</th>
+              <th style="min-width:90px">Date</th>
+            </tr>
+          </thead>
+          <tbody id="mr-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div><!-- /mr-list -->
+
+
+<!-- ===================== FEEDBACK THEMES VIEW ===================== -->
+<div id="view-feedback" class="view">
+  <div style="max-width:900px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h1 style="font-size:20px;font-weight:600;color:#fafafa">Feedback Themes</h1>
+        <p style="font-size:13px;color:#52525b;margin-top:2px">Review comment patterns — current sprint</p>
+      </div>
+      <div style="display:flex;gap:4px">
+        <button class="metric-pill active" onclick="setFbScope('my')" id="fb-my">My themes</button>
+        <button class="metric-pill" onclick="setFbScope('team')" id="fb-team">Team</button>
+      </div>
+    </div>
+
+    <!-- Horizontal bar chart card -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="padding:16px 22px 12px;border-bottom:1px solid #1e1e28">
+        <div style="font-size:14px;font-weight:600;color:#fafafa">Review Comment Categories</div>
+        <div style="font-size:12px;color:#52525b;margin-top:2px">Onur Ulusoy — % of MRs receiving this category of feedback</div>
+      </div>
+      <div style="padding:20px 22px">
+        <div id="fb-bars-container"></div>
+      </div>
+    </div>
+
+    <!-- Drill-down panels -->
+    <div id="fb-drilldown"></div>
+  </div>
+</div><!-- /feedback -->
+
+
+<!-- ===================== TEAM HEALTH VIEW ===================== -->
+<div id="view-health" class="view">
+  <div style="max-width:1100px">
+    <div style="margin-bottom:20px">
+      <h1 style="font-size:20px;font-weight:600;color:#fafafa">Team Health</h1>
+      <p style="font-size:13px;color:#52525b;margin-top:2px">Working agreements & pipeline health — last 4 weeks</p>
+    </div>
+
+    <!-- Stat cards row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+      <div class="stat-card">
+        <div class="stat-label">MRs Merged</div>
+        <div class="stat-value">19</div>
+        <div style="font-size:12px;color:#52525b;margin-top:4px">This sprint</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Team Median CT</div>
+        <div class="stat-value" style="color:#f59e0b">6.1h</div>
+        <div style="font-size:12px;color:#f59e0b66;margin-top:4px">↑45% vs last sprint</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Outliers</div>
+        <div class="stat-value" style="color:#ef4444">1</div>
+        <div style="font-size:12px;color:#52525b;margin-top:4px">0 last sprint</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rework Rate</div>
+        <div class="stat-value">5%</div>
+        <div style="font-size:12px;color:#10b981;margin-top:4px">↓ improving</div>
+      </div>
+    </div>
+
+    <!-- Working agreements -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="padding:16px 22px 12px;border-bottom:1px solid #1e1e28">
+        <div style="font-size:14px;font-weight:600;color:#fafafa">Working Agreements</div>
+      </div>
+      <div id="wa-list">
+        <div class="wa-row">
+          <div class="status-dot status-green"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:#d4d4d8">MR size &lt; 553 lines (p75)</div>
+            <div style="font-size:11px;color:#52525b;margin-top:2px">Team p75 this sprint: 312 lines</div>
+          </div>
+          <div style="font-size:12px;color:#22c55e;font-weight:500">Meeting</div>
+        </div>
+        <div class="wa-row">
+          <div class="status-dot status-amber"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:#d4d4d8">Cycle time &lt; 24h per MR (p75)</div>
+            <div style="font-size:11px;color:#52525b;margin-top:2px">Team p75 this sprint: 22.4h (1 outlier at 98.3h)</div>
+          </div>
+          <div style="font-size:12px;color:#f59e0b;font-weight:500">At risk</div>
+        </div>
+        <div class="wa-row">
+          <div class="status-dot status-green"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:#d4d4d8">Review turnaround &lt; 4h</div>
+            <div style="font-size:11px;color:#52525b;margin-top:2px">Median pickup time: 2.1h</div>
+          </div>
+          <div style="font-size:12px;color:#22c55e;font-weight:500">Meeting</div>
+        </div>
+        <div class="wa-row">
+          <div class="status-dot status-amber"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:#d4d4d8">All MRs linked to a ticket</div>
+            <div style="font-size:11px;color:#52525b;margin-top:2px">3 MRs unlinked this sprint</div>
+          </div>
+          <div style="font-size:12px;color:#f59e0b;font-weight:500">At risk</div>
+        </div>
+        <div class="wa-row">
+          <div class="status-dot status-green"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:#d4d4d8">No force-pushes to main</div>
+            <div style="font-size:11px;color:#52525b;margin-top:2px">0 violations this sprint</div>
+          </div>
+          <div style="font-size:12px;color:#22c55e;font-weight:500">Meeting</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cycle time trend chart -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="padding:16px 22px 12px;border-bottom:1px solid #1e1e28">
+        <div style="font-size:14px;font-weight:600;color:#fafafa">Cycle Time Trend — Last 4 Sprints</div>
+      </div>
+      <div style="padding:20px 22px;height:220px">
+        <canvas id="health-cycle-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Open MRs in review -->
+    <div class="card">
+      <div style="padding:16px 22px 12px;border-bottom:1px solid #1e1e28">
+        <div style="font-size:14px;font-weight:600;color:#fafafa">Work in Review</div>
+        <div style="font-size:12px;color:#52525b;margin-top:2px">Open MRs awaiting review or merge</div>
+      </div>
+      <div id="wir-list" style="padding:8px 0"></div>
+    </div>
+  </div>
+</div><!-- /health -->
+
+
+<!-- ===================== SETTINGS VIEW ===================== -->
+<div id="view-settings" class="view">
+  <div style="max-width:800px">
+    <div style="margin-bottom:20px">
+      <h1 style="font-size:20px;font-weight:600;color:#fafafa">Settings</h1>
+      <p style="font-size:13px;color:#52525b;margin-top:2px">Configure working agreements and alert thresholds</p>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div style="padding:16px 22px 12px;border-bottom:1px solid #1e1e28">
+        <div style="font-size:14px;font-weight:600;color:#fafafa">Working Agreements</div>
+        <div style="font-size:12px;color:#52525b;margin-top:2px">Define thresholds used to evaluate team health status dots</div>
+      </div>
+      <div style="padding:0">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;padding:10px 20px;border-bottom:1px solid #1e1e28;font-size:11px;color:#52525b;text-transform:uppercase;letter-spacing:0.06em">
+          <div>Agreement</div><div>Threshold</div><div>Unit</div>
+        </div>
+        <div class="settings-row">
+          <div style="font-size:13px;color:#d4d4d8">MR size (p75 limit)</div>
+          <input class="settings-input" value="553" type="number" onchange="saveSetting(this,'mrSize')" />
+          <div style="font-size:12px;color:#52525b">lines</div>
+        </div>
+        <div class="settings-row">
+          <div style="font-size:13px;color:#d4d4d8">Cycle time p75 limit</div>
+          <input class="settings-input" value="24" type="number" onchange="saveSetting(this,'cycleTime')" />
+          <div style="font-size:12px;color:#52525b">hours</div>
+        </div>
+        <div class="settings-row">
+          <div style="font-size:13px;color:#d4d4d8">Review turnaround limit</div>
+          <input class="settings-input" value="4" type="number" onchange="saveSetting(this,'reviewTA')" />
+          <div style="font-size:12px;color:#52525b">hours</div>
+        </div>
+        <div class="settings-row">
+          <div style="font-size:13px;color:#d4d4d8">Max review iterations</div>
+          <input class="settings-input" value="2" type="number" onchange="saveSetting(this,'reviewIter')" />
+          <div style="font-size:12px;color:#52525b">rounds</div>
+        </div>
+        <div class="settings-row">
+          <div style="font-size:13px;color:#d4d4d8">Outlier detection IQR multiplier</div>
+          <input class="settings-input" value="1.5" type="number" step="0.1" onchange="saveSetting(this,'iqrMult')" />
+          <div style="font-size:12px;color:#52525b">× IQR</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="padding:16px 22px 12px;border-bottom:1px solid #1e1e28">
+        <div style="font-size:14px;font-weight:600;color:#fafafa">Sprint Configuration</div>
+      </div>
+      <div style="padding:0">
+        <div class="settings-row">
+          <div style="font-size:13px;color:#d4d4d8">Sprint duration</div>
+          <input class="settings-input" value="14" type="number" onchange="saveSetting(this,'sprintDuration')" />
+          <div style="font-size:12px;color:#52525b">days</div>
+        </div>
+        <div class="settings-row">
+          <div style="font-size:13px;color:#d4d4d8">Sprint start day</div>
+          <input class="settings-input" value="Monday" type="text" onchange="saveSetting(this,'sprintStart')" />
+          <div style="font-size:12px;color:#52525b">day of week</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /settings -->
+
+</div><!-- /main-content -->
+
+<!-- Detail panel -->
+<div id="detail-backdrop" onclick="closeDetail()"></div>
+<div id="detail-panel">
+  <div style="padding:16px 20px;border-bottom:1px solid #1e1e28;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div style="font-size:14px;font-weight:600;color:#fafafa">MR Detail</div>
+    <button onclick="closeDetail()" style="width:28px;height:28px;border-radius:6px;background:#1e1e28;border:none;cursor:pointer;color:#71717a;display:flex;align-items:center;justify-content:center">
+      <i data-lucide="x" style="width:14px;height:14px"></i>
+    </button>
+  </div>
+  <div id="detail-scroll"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════
+
+const TEAM_MEMBERS = {
+  sebastian: { name: 'Sebastian Aretz', role: 'Senior / Tech Lead', initials: 'SA', color: '#6366f1' },
+  jan: { name: 'Jan Reiners', role: 'Mid-level', initials: 'JR', color: '#10b981' },
+  onur: { name: 'Onur Ulusoy', role: 'Mid-level', initials: 'OU', color: '#f59e0b' }
+};
+
+const CURRENT_SPRINT_MRS = [
+  { id: 's1', author: 'sebastian', title: 'chore: Update Datadog monitors', cycleHours: 0.7, lines: 45, reviewRounds: 1, isRework: false },
+  { id: 's2', author: 'sebastian', title: 'refactor: Extract order service logic', cycleHours: 3.4, lines: 312, reviewRounds: 1, isRework: false },
+  { id: 's3', author: 'sebastian', title: 'fix: Race condition in auth', cycleHours: 2.1, lines: 112, reviewRounds: 1, isRework: false },
+  { id: 's4', author: 'sebastian', title: 'feat: Add search result caching', cycleHours: 1.8, lines: 189, reviewRounds: 1, isRework: false },
+  { id: 's5', author: 'sebastian', title: 'feat: Implement cart price recalculation', cycleHours: 4.2, lines: 267, reviewRounds: 2, isRework: false },
+  { id: 's6', author: 'sebastian', title: 'chore: Upgrade Spring Boot 3.2', cycleHours: 2.9, lines: 134, reviewRounds: 1, isRework: false },
+  { id: 's7', author: 'sebastian', title: 'feat: Add order state machine', cycleHours: 5.1, lines: 445, reviewRounds: 1, isRework: false },
+  { id: 'j1', author: 'jan', title: 'feat: Add payment webhook handler', cycleHours: 5.6, lines: 234, reviewRounds: 1, isRework: false },
+  { id: 'j2', author: 'jan', title: 'feat: Product recommendations API', cycleHours: 10.3, lines: 445, reviewRounds: 2, isRework: false },
+  { id: 'j3', author: 'jan', title: 'fix: Null pointer in cart calculation', cycleHours: 1.2, lines: 34, reviewRounds: 1, isRework: false },
+  { id: 'j4', author: 'jan', title: 'feat: Shipping rate calculator', cycleHours: 8.7, lines: 312, reviewRounds: 2, isRework: false },
+  { id: 'j5', author: 'jan', title: 'chore: Add unit tests for order service', cycleHours: 3.4, lines: 178, reviewRounds: 1, isRework: false },
+  { id: 'o1', author: 'onur', title: 'feat: Implement user session caching', cycleHours: 98.3, lines: 847, reviewRounds: 3, isRework: false },
+  { id: 'o2', author: 'onur', title: 'feat: Inventory availability endpoint', cycleHours: 22.1, lines: 623, reviewRounds: 2, isRework: false },
+  { id: 'o3', author: 'onur', title: 'chore: Add Flyway migration', cycleHours: 4.1, lines: 28, reviewRounds: 1, isRework: false },
+  { id: 'o4', author: 'onur', title: 'fix: Auth token refresh edge case', cycleHours: 18.4, lines: 156, reviewRounds: 2, isRework: true },
+  { id: 'o5', author: 'onur', title: 'chore: Add Datadog monitor for checkout', cycleHours: 2.8, lines: 34, reviewRounds: 1, isRework: false },
+];
+
+// Enrich with derived fields
+const MR_DATES = ['Apr 8','Apr 9','Apr 9','Apr 10','Apr 11','Apr 11','Apr 12','Apr 9','Apr 11','Apr 13','Apr 14','Apr 15','Apr 8','Apr 12','Apr 14','Apr 15','Apr 16'];
+const MR_TICKETS = ['ENG-1201',null,'ENG-1203',null,'ENG-1205','ENG-1206','ENG-1207','ENG-1208',null,'ENG-1210','ENG-1211','ENG-1212','ENG-1213','ENG-1214',null,'ENG-1216','ENG-1217'];
+
+CURRENT_SPRINT_MRS.forEach((mr, i) => {
+  mr.date = MR_DATES[i];
+  mr.ticket = MR_TICKETS[i];
+  mr.status = mr.cycleHours > 50 ? 'open' : 'merged';
+  // Decompose cycle time: coding ~50%, pickup ~15%, review ~35%
+  const rFactor = mr.reviewRounds > 1 ? 0.45 : 0.3;
+  mr.codingH = +(mr.cycleHours * 0.5).toFixed(1);
+  mr.pickupH = +(mr.cycleHours * 0.12).toFixed(1);
+  mr.reviewH = +(mr.cycleHours * (1 - 0.5 - 0.12)).toFixed(1);
+});
+
+// For o1 (the outlier), the story is review-heavy
+CURRENT_SPRINT_MRS.find(m => m.id === 'o1').codingH = 22.3;
+CURRENT_SPRINT_MRS.find(m => m.id === 'o1').pickupH = 8.0;
+CURRENT_SPRINT_MRS.find(m => m.id === 'o1').reviewH = 68.0;
+
+const MR_MAP = {};
+CURRENT_SPRINT_MRS.forEach(mr => MR_MAP[mr.id] = mr);
+
+// ═══════════════════════════════════════════════════════
+// BOX STATS
+// ═══════════════════════════════════════════════════════
+
+function calcBoxStats(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const n = sorted.length;
+  const q1 = sorted[Math.floor(n * 0.25)];
+  const median = sorted[Math.floor(n * 0.5)];
+  const q3 = sorted[Math.floor(n * 0.75)];
+  const iqr = q3 - q1;
+  const whiskerLow = Math.max(sorted[0], q1 - 1.5 * iqr);
+  const whiskerHigh = Math.min(sorted[n - 1], q3 + 1.5 * iqr);
+  const outliers = sorted.filter(v => v < whiskerLow || v > whiskerHigh);
+  return { q1, median, q3, iqr, whiskerLow, whiskerHigh, outliers };
+}
+
+// ═══════════════════════════════════════════════════════
+// SEEDED JITTER
+// ═══════════════════════════════════════════════════════
+
+function seededRand(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// METRIC CONFIG
+// ═══════════════════════════════════════════════════════
+
+let currentMetric = 'cycle';
+const METRIC_CONFIG = {
+  cycle: {
+    label: 'Cycle Time Distribution — Current Sprint',
+    subtitle: 'Each dot = one MR. Box shows IQR. Red dots are statistical outliers (>1.5×IQR)',
+    getValue: mr => mr.cycleHours,
+    unit: 'h',
+    sprintCompareLabel: 'Cycle Time — last sprint vs this sprint',
+    lastSprint: { median: 4.2, p75: 9.1, outliers: 0 },
+    thisSprint: null, // computed
+  },
+  size: {
+    label: 'MR Size Distribution — Current Sprint',
+    subtitle: 'Lines changed per MR. Boxes show IQR. Red dots = statistical outliers.',
+    getValue: mr => mr.lines,
+    unit: ' lines',
+    sprintCompareLabel: 'MR Size — last sprint vs this sprint',
+    lastSprint: { median: 178, p75: 400, outliers: 0 },
+    thisSprint: null,
+  },
+  reviews: {
+    label: 'Review Iterations — Current Sprint',
+    subtitle: 'Number of review rounds per MR. Red dots = statistical outliers.',
+    getValue: mr => mr.reviewRounds,
+    unit: ' rounds',
+    sprintCompareLabel: 'Review Iterations — last sprint vs this sprint',
+    lastSprint: { median: 1, p75: 2, outliers: 0 },
+    thisSprint: null,
+  },
+  rework: {
+    label: 'Rework MRs — Current Sprint',
+    subtitle: 'MRs flagged as rework (1 = yes, 0 = no). Red = statistically higher than team norm.',
+    getValue: mr => mr.isRework ? 1 : 0,
+    unit: '',
+    sprintCompareLabel: 'Rework — last sprint vs this sprint',
+    lastSprint: { median: 0, p75: 0, outliers: 0 },
+    thisSprint: null,
+  }
+};
+
+// ═══════════════════════════════════════════════════════
+// BOX PLOT RENDERING
+// ═══════════════════════════════════════════════════════
+
+const AUTHORS = ['sebastian', 'jan', 'onur'];
+let dotHitAreas = []; // [{mr, cx, cy, r}]
+
+function drawBoxPlot(metric) {
+  const canvas = document.getElementById('boxplot-canvas');
+  const container = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const W = container.offsetWidth;
+  const H = 320;
+
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cfg = METRIC_CONFIG[metric];
+  const getValue = cfg.getValue;
+
+  // Margins
+  const marginLeft = 70;
+  const marginRight = 30;
+  const marginTop = 20;
+  const marginBottom = 40;
+  const plotW = W - marginLeft - marginRight;
+  const plotH = H - marginTop - marginBottom;
+
+  // Per-author data
+  const authorData = AUTHORS.map(author => ({
+    author,
+    mrs: CURRENT_SPRINT_MRS.filter(mr => mr.author === author),
+    values: CURRENT_SPRINT_MRS.filter(mr => mr.author === author).map(getValue),
+  }));
+
+  // Find global max for scale
+  const allVals = CURRENT_SPRINT_MRS.map(getValue);
+  const globalMax = Math.max(...allVals);
+  const globalMin = Math.min(...allVals);
+  let yMax = globalMax * 1.12;
+  let yMin = 0;
+
+  function yScale(v) {
+    return marginTop + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  }
+
+  // Draw grid lines
+  const gridCount = 5;
+  ctx.strokeStyle = '#1e1e28';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= gridCount; i++) {
+    const v = yMin + (yMax - yMin) * (i / gridCount);
+    const y = yScale(v);
+    ctx.beginPath();
+    ctx.moveTo(marginLeft, y);
+    ctx.lineTo(marginLeft + plotW, y);
+    ctx.stroke();
+    // Y label
+    ctx.fillStyle = '#52525b';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    const label = metric === 'cycle' ? v.toFixed(0) + 'h' :
+                  metric === 'size' ? v.toFixed(0) :
+                  metric === 'reviews' ? v.toFixed(1) : v.toFixed(1);
+    ctx.fillText(label, marginLeft - 8, y + 4);
+  }
+
+  // Box width
+  const slotW = plotW / AUTHORS.length;
+  const boxW = Math.min(60, slotW * 0.35);
+
+  dotHitAreas = [];
+
+  AUTHORS.forEach((author, ai) => {
+    const data = authorData[ai];
+    const member = TEAM_MEMBERS[author];
+    const cx = marginLeft + slotW * ai + slotW / 2;
+
+    if (data.values.length === 0) return;
+
+    const stats = calcBoxStats(data.values);
+    const rand = seededRand(author.charCodeAt(0) * 31 + ai * 7);
+
+    // Draw whisker lines
+    ctx.strokeStyle = member.color + '66';
+    ctx.lineWidth = 1.5;
+
+    // Whisker top
+    ctx.beginPath();
+    ctx.moveTo(cx, yScale(stats.whiskerHigh));
+    ctx.lineTo(cx, yScale(stats.q3));
+    ctx.stroke();
+
+    // Whisker bottom
+    ctx.beginPath();
+    ctx.moveTo(cx, yScale(stats.whiskerLow));
+    ctx.lineTo(cx, yScale(stats.q1));
+    ctx.stroke();
+
+    // Whisker caps
+    ctx.beginPath();
+    ctx.moveTo(cx - boxW * 0.25, yScale(stats.whiskerHigh));
+    ctx.lineTo(cx + boxW * 0.25, yScale(stats.whiskerHigh));
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - boxW * 0.25, yScale(stats.whiskerLow));
+    ctx.lineTo(cx + boxW * 0.25, yScale(stats.whiskerLow));
+    ctx.stroke();
+
+    // IQR box fill
+    const boxTop = yScale(stats.q3);
+    const boxBottom = yScale(stats.q1);
+    const boxH = boxBottom - boxTop;
+
+    ctx.fillStyle = member.color + '1a';
+    ctx.strokeStyle = member.color + '55';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(cx - boxW / 2, boxTop, boxW, boxH);
+    ctx.strokeRect(cx - boxW / 2, boxTop, boxW, boxH);
+
+    // Median line
+    ctx.strokeStyle = member.color + 'cc';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - boxW / 2, yScale(stats.median));
+    ctx.lineTo(cx + boxW / 2, yScale(stats.median));
+    ctx.stroke();
+
+    // Draw individual MR dots
+    data.mrs.forEach((mr, mi) => {
+      const v = getValue(mr);
+      const isOutlier = v < stats.whiskerLow || v > stats.whiskerHigh;
+      const jitter = (rand() - 0.5) * 26;
+      const dotX = cx + jitter;
+      const dotY = yScale(v);
+      const r = isOutlier ? 7 : 4.5;
+
+      if (isOutlier) {
+        // Glow ring for outlier
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, r + 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(239,68,68,0.12)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#ef4444';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(239,68,68,0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, r, 0, Math.PI * 2);
+        ctx.fillStyle = member.color + '88';
+        ctx.strokeStyle = member.color + 'aa';
+        ctx.lineWidth = 1;
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      dotHitAreas.push({ mr, cx: dotX, cy: dotY, r: Math.max(r, 8), isOutlier });
+    });
+
+    // X axis label with avatar
+    const labelY = marginTop + plotH + 24;
+    ctx.fillStyle = member.color;
+    ctx.font = '600 12px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(member.initials, cx, labelY);
+
+    // Author name below
+    ctx.fillStyle = '#71717a';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText(member.name.split(' ')[0], cx, labelY + 14);
+  });
+
+  // Attach mouse events
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const tt = document.getElementById('dot-tooltip');
+    let hit = null;
+    for (const area of dotHitAreas) {
+      const dx = mx - area.cx;
+      const dy = my - area.cy;
+      if (Math.sqrt(dx*dx + dy*dy) <= area.r + 4) {
+        hit = area;
+        break;
+      }
+    }
+    if (hit) {
+      canvas.style.cursor = 'pointer';
+      const mr = hit.mr;
+      const member = TEAM_MEMBERS[mr.author];
+      const val = METRIC_CONFIG[currentMetric].getValue(mr);
+      const unit = METRIC_CONFIG[currentMetric].unit;
+      tt.innerHTML = `
+        <div style="font-weight:600;color:#fafafa;margin-bottom:5px;font-size:12px">${mr.title}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <div style="width:20px;height:20px;border-radius:50%;background:${member.color}22;color:${member.color};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">${member.initials}</div>
+          <span style="color:#a1a1aa;font-size:11px">${member.name}</span>
+        </div>
+        <div style="display:flex;gap:10px;font-size:11px">
+          <span style="color:${hit.isOutlier ? '#ef4444' : '#d4d4d8'};font-weight:600">${val}${unit}</span>
+          ${hit.isOutlier ? '<span style="color:#ef4444;font-size:10px;font-weight:600;background:rgba(239,68,68,0.1);padding:1px 6px;border-radius:4px">OUTLIER</span>' : ''}
+        </div>
+        <div style="margin-top:4px;font-size:10px;color:#52525b">${mr.date} · Click to view detail</div>
+      `;
+      tt.style.display = 'block';
+      // Position tooltip
+      let tx = mx + 14;
+      let ty = my - 10;
+      const panelW = parseInt(tt.style.minWidth || '180');
+      if (tx + 260 > W) tx = mx - 270;
+      tt.style.left = tx + 'px';
+      tt.style.top = ty + 'px';
+    } else {
+      canvas.style.cursor = 'default';
+      tt.style.display = 'none';
+    }
+  };
+
+  canvas.onmouseleave = function() {
+    document.getElementById('dot-tooltip').style.display = 'none';
+    canvas.style.cursor = 'default';
+  };
+
+  canvas.onclick = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    for (const area of dotHitAreas) {
+      const dx = mx - area.cx;
+      const dy = my - area.cy;
+      if (Math.sqrt(dx*dx + dy*dy) <= area.r + 4) {
+        openMRDetail(area.mr.id);
+        return;
+      }
+    }
+  };
+}
+
+function renderOutlierCards(metric) {
+  const cfg = METRIC_CONFIG[metric];
+  const getValue = cfg.getValue;
+  const allVals = CURRENT_SPRINT_MRS.map(getValue);
+  const globalStats = calcBoxStats(allVals);
+  const teamAvg = allVals.reduce((a,b) => a+b, 0) / allVals.length;
+
+  const outlierMRs = CURRENT_SPRINT_MRS.filter(mr => {
+    const v = getValue(mr);
+    return v > globalStats.whiskerHigh || v < globalStats.whiskerLow;
+  });
+
+  const container = document.getElementById('outlier-cards');
+  if (outlierMRs.length === 0) {
+    container.innerHTML = `
+      <div style="padding:14px 18px;background:#13131a;border:1px solid #1e1e28;border-radius:10px;display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <i data-lucide="check-circle-2" style="width:16px;height:16px;color:#22c55e;flex-shrink:0"></i>
+        <span style="font-size:13px;color:#52525b">No statistical outliers detected for this metric this sprint</span>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  container.innerHTML = outlierMRs.map(mr => {
+    const v = getValue(mr);
+    const member = TEAM_MEMBERS[mr.author];
+    const multiple = (v / teamAvg).toFixed(1);
+
+    // Author p75
+    const authorVals = CURRENT_SPRINT_MRS.filter(m => m.author === mr.author).map(getValue);
+    const authorStats = calcBoxStats(authorVals);
+    const ownMultiple = authorStats.q3 > 0 ? (v / authorStats.q3).toFixed(1) : 'N/A';
+
+    return `
+      <div class="outlier-card" style="margin-bottom:12px">
+        <div class="outlier-card-label">
+          <i data-lucide="alert-circle" style="width:13px;height:13px"></i>
+          Statistical Outlier Detected
+        </div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600;color:#fafafa;margin-bottom:6px">"${mr.title}"</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <div style="width:22px;height:22px;border-radius:50%;background:${member.color}22;color:${member.color};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">${member.initials}</div>
+              <span style="font-size:12px;color:#a1a1aa">${member.name}</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px">
+              <span style="color:#ef4444;font-weight:600">${cfg.label.includes('Cycle') ? v + 'h' : cfg.label.includes('Size') ? v + ' lines' : v + cfg.unit}</span>
+              <span style="color:#71717a">${multiple}× above team average</span>
+              <span style="color:#71717a">This MR is ${ownMultiple}× above ${member.name.split(' ')[0]}'s own p75</span>
+            </div>
+          </div>
+          <button onclick="openMRDetail('${mr.id}')" style="flex-shrink:0;padding:7px 14px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:6px;color:#f59e0b;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background 0.12s" onmouseover="this.style.background='rgba(245,158,11,0.18)'" onmouseout="this.style.background='rgba(245,158,11,0.1)'">
+            View MR →
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  lucide.createIcons();
+}
+
+function renderSprintComparison(metric) {
+  const cfg = METRIC_CONFIG[metric];
+  const getValue = cfg.getValue;
+  const vals = CURRENT_SPRINT_MRS.map(getValue);
+  const stats = calcBoxStats(vals);
+
+  const teamMedian = stats.median;
+  const teamP75 = stats.q3;
+  const outlierCount = stats.outliers.length;
+
+  const ls = cfg.lastSprint;
+  document.getElementById('sprint-compare-label').textContent = cfg.sprintCompareLabel;
+
+  function delta(a, b) {
+    if (a === 0 && b === 0) return '<span class="delta-neutral">—</span>';
+    if (a === 0) return '<span class="delta-up">+∞</span>';
+    const pct = Math.round(((b - a) / a) * 100);
+    const cls = pct > 0 ? 'delta-up' : 'delta-down';
+    const arrow = pct > 0 ? '↑' : '↓';
+    return `<span class="${cls}">${arrow}${Math.abs(pct)}%</span>`;
+  }
+
+  function outDelta(a, b) {
+    const diff = b - a;
+    if (diff === 0) return '<span class="delta-neutral">—</span>';
+    const cls = diff > 0 ? 'delta-up' : 'delta-down';
+    return `<span class="${cls}">${diff > 0 ? '+' : ''}${diff}</span>`;
+  }
+
+  const unit = cfg.unit;
+  const rows = [
+    ['Team median', `${ls.median}${unit}`, `${teamMedian.toFixed(1)}${unit}`, delta(ls.median, teamMedian)],
+    ['Team p75', `${ls.p75}${unit}`, `${teamP75.toFixed(1)}${unit}`, delta(ls.p75, teamP75)],
+    ['Outliers', ls.outliers, outlierCount, outDelta(ls.outliers, outlierCount)],
+  ];
+
+  document.getElementById('sprint-tbody').innerHTML = rows.map((r, i) => `
+    <tr>
+      <td style="color:#a1a1aa;font-weight:500">${r[0]}</td>
+      <td style="color:#71717a">${r[1]}</td>
+      <td style="color:#d4d4d8;font-weight:500">${r[2]}</td>
+      <td>${r[3]}</td>
+    </tr>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// METRIC SWITCHING
+// ═══════════════════════════════════════════════════════
+
+function setMetric(m) {
+  currentMetric = m;
+  document.querySelectorAll('.metric-pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('pill-' + m).classList.add('active');
+
+  const cfg = METRIC_CONFIG[m];
+  document.getElementById('chart-title').textContent = cfg.label;
+  document.getElementById('chart-subtitle').textContent = cfg.subtitle;
+
+  drawBoxPlot(m);
+  renderOutlierCards(m);
+  renderSprintComparison(m);
+}
+
+// ═══════════════════════════════════════════════════════
+// MR LIST
+// ═══════════════════════════════════════════════════════
+
+let highlightUnlinked = false;
+let selectedMrId = null;
+let ticketLinkStates = {};
+CURRENT_SPRINT_MRS.forEach(mr => { ticketLinkStates[mr.id] = mr.ticket; });
+
+let openPopoverId = null;
+
+const JIRA_TICKETS = [
+  { key: 'ENG-1201', title: 'Update monitoring configuration', status: 'Done', type: 'task' },
+  { key: 'ENG-1202', title: 'Order service refactoring', status: 'In Progress', type: 'story' },
+  { key: 'ENG-1203', title: 'Auth race condition fix', status: 'Done', type: 'bug' },
+  { key: 'ENG-1204', title: 'Search result caching layer', status: 'Done', type: 'story' },
+  { key: 'ENG-1205', title: 'Cart price recalculation feature', status: 'Done', type: 'story' },
+  { key: 'ENG-1210', title: 'Payment webhook handler', status: 'Done', type: 'story' },
+  { key: 'ENG-1220', title: 'Inventory endpoint implementation', status: 'In Progress', type: 'story' },
+  { key: 'ENG-1221', title: 'User session caching', status: 'In Progress', type: 'story' },
+  { key: 'ENG-1215', title: 'Flyway migration setup', status: 'Done', type: 'task' },
+];
+
+function getSizeLabel(lines) {
+  if (lines < 70) return ['Small', 'size-small'];
+  if (lines <= 553) return ['In Zone', 'size-inzone'];
+  return ['Oversized', 'size-oversized'];
+}
+
+function renderMRTable(mrs) {
+  const tbody = document.getElementById('mr-tbody');
+  const unlinked = mrs.filter(m => !ticketLinkStates[m.id]);
+  document.getElementById('unlinked-count').textContent = unlinked.length;
+
+  const merged = mrs.filter(m => m.status === 'merged').length;
+  const open = mrs.filter(m => m.status === 'open').length;
+  document.getElementById('mr-stats-line').innerHTML = `
+    <span style="font-weight:600;color:#d4d4d8">${mrs.length}</span> MRs &nbsp;·&nbsp;
+    <span style="font-weight:600;color:#d4d4d8">${merged}</span> merged &nbsp;·&nbsp;
+    <span style="font-weight:600;color:#d4d4d8">${open}</span> open &nbsp;·&nbsp;
+    <span style="font-weight:600;color:#fcd34d">${unlinked.length}</span> unlinked
+  `;
+
+  tbody.innerHTML = mrs.map(mr => {
+    const member = TEAM_MEMBERS[mr.author];
+    const [sizeLabel, sizeCls] = getSizeLabel(mr.lines);
+    const total = mr.cycleHours;
+    const codingPct = (mr.codingH / total * 100).toFixed(1);
+    const pickupPct = (mr.pickupH / total * 100).toFixed(1);
+    const reviewPct = (mr.reviewH / total * 100).toFixed(1);
+    const isUnlinked = !ticketLinkStates[mr.id];
+    const rowClass = (highlightUnlinked && isUnlinked) ? 'unlinked-row' : '';
+    const selectedClass = selectedMrId === mr.id ? 'mr-row-selected' : '';
+    const ticket = ticketLinkStates[mr.id];
+
+    return `
+      <tr class="${rowClass} ${selectedClass}" onclick="handleMRRowClick('${mr.id}')" style="${highlightUnlinked && isUnlinked ? 'background:rgba(245,158,11,0.05)' : ''}">
+        <td>
+          <div style="font-size:13px;font-weight:500;color:#d4d4d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px" title="${mr.title}">${mr.title}</div>
+          <div style="font-size:11px;color:#52525b;margin-top:1px">${mr.date}</div>
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="avatar" style="width:22px;height:22px;background:${member.color}22;color:${member.color};font-size:9px">${member.initials}</div>
+            <span style="font-size:12px;color:#a1a1aa">${member.name.split(' ')[0]}</span>
+          </div>
+        </td>
+        <td><span class="size-badge ${sizeCls}">${sizeLabel}</span><span style="font-size:11px;color:#52525b;margin-left:4px">${mr.lines}L</span></td>
+        <td>
+          <div class="cycle-bar-container">
+            <div class="cycle-bar">
+              <div class="cycle-segment seg-coding" style="width:${codingPct}%"></div>
+              <div class="cycle-segment seg-pickup" style="width:${pickupPct}%"></div>
+              <div class="cycle-segment seg-review" style="width:${reviewPct}%"></div>
+            </div>
+            <span class="cycle-total">${total}h</span>
+          </div>
+        </td>
+        <td style="position:relative">
+          ${ticket
+            ? `<div class="ticket-chip" title="${ticket}"><i data-lucide="ticket" style="width:10px;height:10px"></i>${ticket}</div>`
+            : `<button class="link-btn" onclick="event.stopPropagation();openTicketPopover('${mr.id}', this)"><i data-lucide="link" style="width:10px;height:10px"></i>Link ticket</button>`
+          }
+        </td>
+        <td><span class="status-badge ${mr.status === 'merged' ? 'status-merged' : 'status-open'}">${mr.status === 'merged' ? '✓ Merged' : '● Open'}</span></td>
+        <td style="font-size:12px;color:#71717a">${mr.date}</td>
+      </tr>
+    `;
+  }).join('');
+  lucide.createIcons();
+}
+
+function applyFilters() {
+  let mrs = [...CURRENT_SPRINT_MRS];
+  const size = document.getElementById('filter-size').value;
+  const author = document.getElementById('filter-author').value;
+  const link = document.getElementById('filter-link').value;
+
+  if (size !== 'all') {
+    mrs = mrs.filter(mr => {
+      if (size === 'small') return mr.lines < 70;
+      if (size === 'inzone') return mr.lines >= 70 && mr.lines <= 553;
+      if (size === 'oversized') return mr.lines > 553;
+      return true;
+    });
+  }
+  if (author !== 'all') mrs = mrs.filter(m => m.author === author);
+  if (link !== 'all') {
+    mrs = mrs.filter(m => link === 'linked' ? !!ticketLinkStates[m.id] : !ticketLinkStates[m.id]);
+  }
+  renderMRTable(mrs);
+}
+
+function toggleUnlinkedHighlight() {
+  highlightUnlinked = !highlightUnlinked;
+  applyFilters();
+}
+
+function handleMRRowClick(id) {
+  selectedMrId = id;
+  applyFilters();
+  openMRDetail(id);
+}
+
+// Ticket popover
+let popoverCleanup = null;
+function openTicketPopover(mrId, btn) {
+  if (openPopoverId === mrId) {
+    closeTicketPopover();
+    return;
+  }
+  closeTicketPopover();
+  openPopoverId = mrId;
+
+  const popover = document.createElement('div');
+  popover.className = 'ticket-popover';
+  popover.innerHTML = `
+    <input type="text" placeholder="Search Jira tickets..." oninput="filterTickets(this.value, '${mrId}')" autofocus />
+    <div id="ticket-list-${mrId}">
+      ${JIRA_TICKETS.map(t => `
+        <div class="ticket-option" onclick="linkTicket('${mrId}','${t.key}')">
+          <div class="ticket-key">${t.key}</div>
+          <div class="ticket-title-t">${t.title}</div>
+          <div style="font-size:10px;color:#52525b;white-space:nowrap">${t.status}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  btn.parentElement.appendChild(popover);
+  const rect = btn.getBoundingClientRect();
+  popover.style.top = (btn.offsetTop + btn.offsetHeight + 4) + 'px';
+  popover.style.left = btn.offsetLeft + 'px';
+
+  popoverCleanup = function(e) {
+    if (!popover.contains(e.target) && e.target !== btn) {
+      closeTicketPopover();
+    }
+  };
+  setTimeout(() => document.addEventListener('click', popoverCleanup), 10);
+}
+
+function closeTicketPopover() {
+  document.querySelectorAll('.ticket-popover').forEach(p => p.remove());
+  if (popoverCleanup) {
+    document.removeEventListener('click', popoverCleanup);
+    popoverCleanup = null;
+  }
+  openPopoverId = null;
+}
+
+function filterTickets(query, mrId) {
+  const list = document.getElementById('ticket-list-' + mrId);
+  const q = query.toLowerCase();
+  const filtered = JIRA_TICKETS.filter(t => t.key.toLowerCase().includes(q) || t.title.toLowerCase().includes(q));
+  list.innerHTML = filtered.map(t => `
+    <div class="ticket-option" onclick="linkTicket('${mrId}','${t.key}')">
+      <div class="ticket-key">${t.key}</div>
+      <div class="ticket-title-t">${t.title}</div>
+      <div style="font-size:10px;color:#52525b;white-space:nowrap">${t.status}</div>
+    </div>
+  `).join('');
+}
+
+function linkTicket(mrId, key) {
+  ticketLinkStates[mrId] = key;
+  closeTicketPopover();
+  applyFilters();
+  showToast(`Linked ${key} to MR`);
+}
+
+// ═══════════════════════════════════════════════════════
+// MR DETAIL PANEL (universal drill-through)
+// ═══════════════════════════════════════════════════════
+
+const MR_COMMENTS = {
+  o1: [
+    { author: 'Jan Reiners', text: 'This caching strategy doesn\'t handle cache invalidation when the user updates their preferences. Need to think through the consistency model.', tags: ['arch'], date: 'Apr 10' },
+    { author: 'Jan Reiners', text: 'Missing distributed lock to prevent thundering herd on cache miss. See our Redis pattern in SessionService.', tags: ['perf', 'arch'], date: 'Apr 11' },
+    { author: 'Sebastian Aretz', text: 'No unit tests for the eviction logic. This needs proper test coverage before merge.', tags: ['test'], date: 'Apr 14' },
+  ],
+  s2: [
+    { author: 'Jan Reiners', text: 'The extracted service interface looks clean. One note: consider using a factory here for testability.', tags: ['arch'], date: 'Apr 9' },
+  ],
+  j2: [
+    { author: 'Sebastian Aretz', text: 'ML model call is synchronous — this will block the request thread. Should be async.', tags: ['perf'], date: 'Apr 12' },
+    { author: 'Onur Ulusoy', text: 'Endpoint naming doesn\'t match our REST conventions. Check the API design guide.', tags: ['arch'], date: 'Apr 12' },
+  ],
+};
+
+const TAG_CLASSES = { arch: 'tag-arch', perf: 'tag-perf', test: 'tag-test' };
+const TAG_LABELS = { arch: 'Architecture', perf: 'Performance', test: 'Testing' };
+
+function openMRDetail(mrId) {
+  const mr = MR_MAP[mrId];
+  if (!mr) return;
+  const member = TEAM_MEMBERS[mr.author];
+  const total = mr.cycleHours;
+  const codingPct = (mr.codingH / total * 100).toFixed(1);
+  const pickupPct = (mr.pickupH / total * 100).toFixed(1);
+  const reviewPct = (mr.reviewH / total * 100).toFixed(1);
+  const [sizeLabel, sizeCls] = getSizeLabel(mr.lines);
+  const comments = MR_COMMENTS[mrId] || [];
+  const ticket = ticketLinkStates[mrId];
+
+  // AI insight
+  let aiInsight = '';
+  if (mrId === 'o1') {
+    aiInsight = `Pattern: This MR's <strong style="color:#fafafa">98.3h cycle time</strong> is driven by the Review phase (<strong style="color:#fafafa">68h</strong>). The reviewer left 4 comments requiring significant rework — 3 architecture concerns and 1 missing test coverage issue. Compare to this author's median: <strong style="color:#fafafa">4.1h</strong>. The 847-line MR size likely contributed to review friction — larger diffs correlate with longer review times across the team.`;
+  } else if (mr.reviewRounds > 1) {
+    aiInsight = `This MR required ${mr.reviewRounds} review rounds. The ${mr.reviewH}h review phase (${reviewPct}% of total cycle time) is above the team median of 1.8h. Consider breaking future work into smaller units to reduce review iteration time.`;
+  } else {
+    aiInsight = `This MR has a healthy cycle time profile. Review phase (${mr.reviewH}h) is within normal range for a ${mr.lines}-line change. 1 review round with fast pickup indicates smooth collaboration.`;
+  }
+
+  const commentsHtml = comments.length > 0 ? `
+    <div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">Review Thread</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${comments.map(c => {
+          const commenter = Object.values(TEAM_MEMBERS).find(m => m.name === c.author);
+          return `
+          <div class="comment-card">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <div class="avatar" style="width:20px;height:20px;background:${commenter?.color || '#6366f1'}22;color:${commenter?.color || '#6366f1'};font-size:8px">${commenter?.initials || '?'}</div>
+              <span style="font-size:12px;font-weight:500;color:#a1a1aa">${c.author}</span>
+              <span style="font-size:11px;color:#52525b">${c.date}</span>
+              <div style="margin-left:auto;display:flex;gap:4px">
+                ${c.tags.map(t => `<span class="comment-tag ${TAG_CLASSES[t] || 'tag-arch'}">${TAG_LABELS[t] || t}</span>`).join('')}
+              </div>
+            </div>
+            <div style="font-size:12px;color:#d4d4d8;line-height:1.55">${c.text}</div>
+          </div>
+        `}).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  document.getElementById('detail-scroll').innerHTML = `
+    <!-- MR header -->
+    <div style="margin-bottom:20px">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">
+        <div class="avatar" style="width:32px;height:32px;background:${member.color}22;color:${member.color};font-size:12px;flex-shrink:0">${member.initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:600;color:#fafafa;line-height:1.35">${mr.title}</div>
+          <div style="font-size:12px;color:#71717a;margin-top:3px">${member.name} · ${mr.date} · ${mr.lines} lines</div>
+        </div>
+        <span class="status-badge ${mr.status === 'merged' ? 'status-merged' : 'status-open'}">${mr.status === 'merged' ? '✓ Merged' : '● Open'}</span>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <div style="background:#0f0f16;border:1px solid #1e1e28;border-radius:7px;padding:10px 12px">
+          <div style="font-size:10px;color:#52525b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Total CT</div>
+          <div style="font-size:16px;font-weight:700;color:${total > 50 ? '#ef4444' : '#fafafa'}">${total}h</div>
+        </div>
+        <div style="background:#0f0f16;border:1px solid #1e1e28;border-radius:7px;padding:10px 12px">
+          <div style="font-size:10px;color:#52525b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Lines</div>
+          <div style="font-size:16px;font-weight:700;color:#fafafa">${mr.lines}</div>
+        </div>
+        <div style="background:#0f0f16;border:1px solid #1e1e28;border-radius:7px;padding:10px 12px">
+          <div style="font-size:10px;color:#52525b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Review Rounds</div>
+          <div style="font-size:16px;font-weight:700;color:#fafafa">${mr.reviewRounds}</div>
+        </div>
+        <div style="background:#0f0f16;border:1px solid #1e1e28;border-radius:7px;padding:10px 12px">
+          <div style="font-size:10px;color:#52525b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Comments</div>
+          <div style="font-size:16px;font-weight:700;color:#fafafa">${comments.length}</div>
+        </div>
+      </div>
+
+      <!-- Ticket link section -->
+      <div style="background:#0f0f16;border:1px solid #1e1e28;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:11px;color:#52525b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Jira Ticket</div>
+            ${ticket
+              ? `<div class="ticket-chip"><i data-lucide="external-link" style="width:10px;height:10px"></i>${ticket}</div>`
+              : `<div style="font-size:12px;color:#71717a">No ticket linked</div>`
+            }
+          </div>
+          ${!ticket ? `<button onclick="openTicketPopoverInDetail('${mr.id}')" style="position:relative;padding:6px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:6px;color:#f59e0b;font-size:12px;cursor:pointer">Link ticket</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Gantt -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Cycle Time Breakdown</div>
+      <div class="gantt-bar-wrap" style="margin-bottom:8px">
+        <div class="gantt-seg gantt-coding" style="width:${codingPct}%"><span>Coding ${mr.codingH}h</span></div>
+        <div class="gantt-seg gantt-pickup" style="width:${pickupPct}%"><span>Pickup ${mr.pickupH}h</span></div>
+        <div class="gantt-seg gantt-review" style="width:${reviewPct}%"><span>Review ${mr.reviewH}h</span></div>
+      </div>
+      <div style="display:flex;gap:14px">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#71717a">
+          <div style="width:8px;height:8px;border-radius:2px;background:#4f8cc9"></div>Coding ${mr.codingH}h
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#71717a">
+          <div style="width:8px;height:8px;border-radius:2px;background:#a78bfa"></div>Pickup ${mr.pickupH}h
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#71717a">
+          <div style="width:8px;height:8px;border-radius:2px;background:#f59e0b"></div>Review ${mr.reviewH}h
+        </div>
+      </div>
+    </div>
+
+    ${commentsHtml}
+
+    <!-- AI Insight -->
+    <div class="ai-insight">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+        <i data-lucide="sparkles" style="width:13px;height:13px;color:#a78bfa"></i>
+        <span style="font-size:11px;font-weight:600;color:#a78bfa;text-transform:uppercase;letter-spacing:0.06em">AI Insight</span>
+      </div>
+      <div style="font-size:13px;line-height:1.65;color:#c4b5fd">${aiInsight}</div>
+    </div>
+  `;
+
+  lucide.createIcons();
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('detail-backdrop').classList.add('open');
+}
+
+function openTicketPopoverInDetail(mrId) {
+  // Simple inline link in detail panel
+  const query = prompt('Enter Jira ticket key (e.g. ENG-1221):');
+  if (query) {
+    ticketLinkStates[mrId] = query.trim().toUpperCase();
+    openMRDetail(mrId);
+    applyFilters();
+    showToast(`Linked ${query.trim().toUpperCase()} to MR`);
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('detail-backdrop').classList.remove('open');
+  selectedMrId = null;
+  applyFilters();
+}
+
+// ═══════════════════════════════════════════════════════
+// FEEDBACK THEMES VIEW
+// ═══════════════════════════════════════════════════════
+
+const FB_DATA = [
+  {
+    category: 'Architecture feedback', pct: 47,
+    comments: [
+      { mr: 'o1', text: 'This caching strategy doesn\'t handle cache invalidation when the user updates their preferences.', classification: 'LLM', confidence: 'high' },
+      { mr: 'j2', text: 'Endpoint naming doesn\'t match our REST conventions. Check the API design guide.', classification: 'regex', confidence: 'det' },
+    ]
+  },
+  {
+    category: 'Performance', pct: 32,
+    comments: [
+      { mr: 'o1', text: 'Missing distributed lock to prevent thundering herd on cache miss.', classification: 'LLM', confidence: 'high' },
+      { mr: 'j2', text: 'ML model call is synchronous — this will block the request thread. Should be async.', classification: 'LLM', confidence: 'high' },
+    ]
+  },
+  {
+    category: 'Testing', pct: 26,
+    comments: [
+      { mr: 'o1', text: 'No unit tests for the eviction logic. This needs proper test coverage before merge.', classification: 'regex', confidence: 'det' },
+    ]
+  },
+  {
+    category: 'Schema design', pct: 25,
+    comments: [
+      { mr: 'o2', text: 'The inventory table schema doesn\'t include an updated_at index which will cause full scans.', classification: 'LLM', confidence: 'high' },
+    ]
+  },
+  {
+    category: 'Unnecessary code', pct: 25,
+    comments: [
+      { mr: 'o4', text: 'This helper method already exists in StringUtils. Remove the duplicate.', classification: 'regex', confidence: 'det' },
+    ]
+  },
+  {
+    category: 'Error handling', pct: 17,
+    comments: [
+      { mr: 'o2', text: 'Missing null check before calling .get() on Optional here — can throw.', classification: 'regex', confidence: 'det' },
+    ]
+  },
+  {
+    category: 'Security', pct: 17,
+    comments: [
+      { mr: 'o1', text: 'Session token is being logged in debug mode — this should be masked.', classification: 'LLM', confidence: 'high' },
+    ]
+  },
+];
+
+let expandedFbCategory = null;
+let fbScope = 'my';
+
+function setFbScope(scope) {
+  fbScope = scope;
+  document.getElementById('fb-my').classList.toggle('active', scope === 'my');
+  document.getElementById('fb-team').classList.toggle('active', scope === 'team');
+  renderFeedbackBars();
+}
+
+function renderFeedbackBars() {
+  const maxPct = 50;
+  const container = document.getElementById('fb-bars-container');
+  container.innerHTML = FB_DATA.map((item, i) => `
+    <div style="margin-bottom:14px;cursor:pointer" onclick="toggleFbDrill(${i})">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">
+        <div style="font-size:13px;font-weight:500;color:#d4d4d8;flex:1">${item.category}</div>
+        <div style="font-size:13px;font-weight:600;color:#a78bfa;min-width:36px;text-align:right">${item.pct}%</div>
+        <i data-lucide="${expandedFbCategory === i ? 'chevron-up' : 'chevron-down'}" style="width:13px;height:13px;color:#52525b;flex-shrink:0"></i>
+      </div>
+      <div class="fb-bar-bg">
+        <div class="fb-bar-fill" style="width:${(item.pct / maxPct * 100)}%;background:linear-gradient(90deg,#6366f1,#a78bfa)"></div>
+      </div>
+    </div>
+  `).join('');
+  lucide.createIcons();
+  renderFbDrilldown();
+}
+
+function toggleFbDrill(i) {
+  expandedFbCategory = expandedFbCategory === i ? null : i;
+  renderFeedbackBars();
+}
+
+function renderFbDrilldown() {
+  const container = document.getElementById('fb-drilldown');
+  if (expandedFbCategory === null) {
+    container.innerHTML = '';
+    return;
+  }
+  const item = FB_DATA[expandedFbCategory];
+  container.innerHTML = `
+    <div class="drill-panel">
+      <div class="drill-panel-header" onclick="toggleFbDrill(${expandedFbCategory})">
+        <i data-lucide="chevron-down" style="width:14px;height:14px;color:#6366f1;flex-shrink:0"></i>
+        <div style="font-size:13px;font-weight:600;color:#fafafa">${item.category}</div>
+        <div style="font-size:12px;color:#52525b;margin-left:auto">${item.comments.length} example${item.comments.length !== 1 ? 's' : ''}</div>
+      </div>
+      <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        ${item.comments.map(c => {
+          const mr = MR_MAP[c.mr];
+          const member = mr ? TEAM_MEMBERS[mr.author] : null;
+          return `
+            <div style="border:1px solid #1e1e28;border-radius:8px;padding:13px 15px;background:#13131a">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                ${member ? `
+                  <div class="avatar" style="width:20px;height:20px;background:${member.color}22;color:${member.color};font-size:8px">${member.initials}</div>
+                  <span style="font-size:11px;color:#71717a">${mr.title}</span>
+                ` : ''}
+                <div style="margin-left:auto;display:flex;gap:4px">
+                  <span class="badge ${c.classification === 'LLM' ? 'badge-llm' : 'badge-regex'}">${c.classification === 'LLM' ? 'LLM ✦' : 'regex'}</span>
+                  <span style="font-size:10px;color:${c.confidence === 'high' ? '#4ade80' : '#818cf8'};background:${c.confidence === 'high' ? '#1a2e1a' : '#1e1b2e'};padding:1px 6px;border-radius:3px;font-weight:600">${c.confidence === 'high' ? '✓ high' : '◎ det'}</span>
+                </div>
+              </div>
+              <div style="font-size:12px;color:#c4b5fd;line-height:1.55;font-style:italic">"${c.text}"</div>
+              ${mr ? `<button onclick="openMRDetail('${mr.id}')" style="margin-top:8px;font-size:11px;color:#6366f1;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline">View MR →</button>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  lucide.createIcons();
+}
+
+// ═══════════════════════════════════════════════════════
+// TEAM HEALTH CHARTS
+// ═══════════════════════════════════════════════════════
+
+let healthChartInstance = null;
+
+function initHealthChart() {
+  const ctx = document.getElementById('health-cycle-chart');
+  if (!ctx) return;
+  if (healthChartInstance) { healthChartInstance.destroy(); healthChartInstance = null; }
+
+  healthChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Sprint -3', 'Sprint -2', 'Sprint -1', 'This Sprint'],
+      datasets: [
+        {
+          label: 'Sebastian', data: [2.8, 3.1, 3.4, 2.9],
+          borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)',
+          borderWidth: 2, pointRadius: 4, tension: 0.3, fill: false
+        },
+        {
+          label: 'Jan', data: [4.2, 5.1, 4.8, 5.8],
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)',
+          borderWidth: 2, pointRadius: 4, tension: 0.3, fill: false
+        },
+        {
+          label: 'Onur', data: [5.1, 6.3, 8.4, 29.1],
+          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)',
+          borderWidth: 2, pointRadius: 4, tension: 0.3, fill: false
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#71717a', font: { size: 11 }, boxWidth: 10, padding: 16 } },
+        tooltip: {
+          backgroundColor: '#1a1a22', borderColor: '#2e2e38', borderWidth: 1,
+          titleColor: '#fafafa', bodyColor: '#a1a1aa',
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}h median CT` }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#1e1e28' }, ticks: { color: '#52525b', font: { size: 11 } } },
+        y: {
+          grid: { color: '#1e1e28' }, ticks: { color: '#52525b', font: { size: 11 }, callback: v => v + 'h' },
+          title: { display: false }
+        }
+      }
+    }
+  });
+}
+
+function renderWIR() {
+  const WIR = [
+    { id: 'o1', ageDays: 10, label: 'OUTLIER', labelColor: '#ef4444' },
+    { id: 'o2', ageDays: 3, label: null },
+    { id: 'j2', ageDays: 5, label: null },
+    { id: 's7', ageDays: 1, label: null },
+  ];
+
+  document.getElementById('wir-list').innerHTML = WIR.map(w => {
+    const mr = MR_MAP[w.id];
+    const member = TEAM_MEMBERS[mr.author];
+    return `
+      <div style="padding:12px 20px;border-bottom:1px solid #1a1a22;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background 0.1s" onmouseover="this.style.background='#1a1a22'" onmouseout="this.style.background=''" onclick="openMRDetail('${mr.id}')">
+        <div class="avatar" style="width:26px;height:26px;background:${member.color}22;color:${member.color};font-size:10px">${member.initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;color:#d4d4d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mr.title}</div>
+          <div style="font-size:11px;color:#52525b;margin-top:1px">${member.name} · ${mr.lines} lines</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${w.label ? `<span style="font-size:10px;font-weight:600;color:${w.labelColor};background:${w.labelColor}18;padding:2px 7px;border-radius:4px">${w.label}</span>` : ''}
+          <span style="font-size:12px;color:${w.ageDays > 7 ? '#ef4444' : w.ageDays > 3 ? '#f59e0b' : '#71717a'};font-weight:500">${w.ageDays}d</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════
+
+function saveSetting(input, key) {
+  showToast('Setting saved');
+}
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+
+let chartResizeTimeout = null;
+const navIds = ['analytics', 'mr-list', 'feedback', 'health', 'settings'];
+
+function showView(view) {
+  navIds.forEach(id => {
+    document.getElementById('view-' + id).classList.remove('active');
+    document.getElementById('nav-' + id).classList.remove('active');
+  });
+  document.getElementById('view-' + view).classList.add('active');
+  document.getElementById('nav-' + view).classList.add('active');
+
+  if (view === 'analytics') {
+    requestAnimationFrame(() => drawBoxPlot(currentMetric));
+  }
+  if (view === 'mr-list') {
+    applyFilters();
+  }
+  if (view === 'feedback') {
+    renderFeedbackBars();
+  }
+  if (view === 'health') {
+    requestAnimationFrame(() => { initHealthChart(); renderWIR(); });
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+
+  // Initial analytics render
+  requestAnimationFrame(() => {
+    drawBoxPlot('cycle');
+    renderOutlierCards('cycle');
+    renderSprintComparison('cycle');
+  });
+
+  // Redraw box plot on window resize
+  window.addEventListener('resize', () => {
+    clearTimeout(chartResizeTimeout);
+    chartResizeTimeout = setTimeout(() => {
+      if (document.getElementById('view-analytics').classList.contains('active')) {
+        drawBoxPlot(currentMetric);
+      }
+    }, 150);
+  });
+});
+</script>
+</body>
+</html>
