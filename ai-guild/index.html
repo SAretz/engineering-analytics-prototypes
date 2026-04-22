@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Guild — How We're Building with AI at Intersport</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- DIN Pro → Intersport official font (loaded if system has it; Barlow Condensed is fallback) -->
+  <!-- Barlow Condensed → DIN Pro substitute, same German industrial grotesque DNA -->
+  <!-- Poppins → Anthropic heading font · Lora → Anthropic body font -->
+  <!-- Inter → GitHub section fallback -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Poppins:wght@300;400;600;700&family=Lora:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Mona Sans Variable → GitHub's own open-source typeface -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/mona-sans@latest/index.css">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── DESIGN TOKENS ─────────────────────────────────
+       Guild    = Intersport: white bg, deep navy, brand blue accent
+       Specdriven = Anthropic: warm near-black, cream, coral
+       Speckit  = GitHub: process black (green-tinted), off-white, GitHub green
+    ─────────────────────────────────────────────────── */
+    :root {
+      /* Intersport defaults (light theme) */
+      --bg:               #ffffff;
+      --bg-card:          rgba(22, 65, 150, 0.06);
+      --bg-card-hl:       rgba(22, 65, 150, 0.12);
+      --fg:               #1a1a1a;
+      --fg-muted:         #555555;
+      --accent:           #164196;
+      --accent-secondary: #e30613;
+      --border:           rgba(0, 38, 106, 0.12);
+      --border-hl:        rgba(22, 65, 150, 0.40);
+      --pill-bg:          rgba(22, 65, 150, 0.07);
+      --pill-border:      rgba(22, 65, 150, 0.20);
+      --quote-bg:         rgba(22, 65, 150, 0.05);
+      --code-bg:          rgba(22, 65, 150, 0.08);
+      --heading-case:     uppercase;
+      --heading-tracking: 0.02em;
+      --font:             'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+      --font-body:        'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+      --notes-fs:         20px;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      transition: background-color 1s ease, color 0.5s ease;
+    }
+
+    /* ── PRESENTATION SHELL ────────────────────────── */
+
+    #presentation {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #slides-wrapper {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── SLIDE BASE ────────────────────────────────── */
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 4vw 8vw;
+      opacity: 0;
+      transform: translateY(30px);
+      pointer-events: none;
+      transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      text-align: center;
+    }
+    .slide.active  { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .slide.leaving { opacity: 0; transform: translateY(-30px); }
+
+    /* Headings use --font (Poppins in Anthropic section, Barlow/Mona elsewhere) */
+    h1, h2, h3, h4 { font-family: var(--font); }
+
+    /* ── SECTION TITLE SLIDES ──────────────────────── */
+
+    .slide-section-title .eyebrow {
+      font-size: clamp(0.65rem, 1.1vw, 0.85rem);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .slide-section-title h1 {
+      font-size: clamp(3rem, 7.5vw, 6.5rem);
+      font-weight: 800;
+      line-height: 1.2;   /* pulse-line-height-regular */
+      text-transform: var(--heading-case);
+      letter-spacing: var(--heading-tracking);
+    }
+
+    .slide-section-title .subtitle {
+      margin-top: 1.5rem;
+      font-size: clamp(0.9rem, 1.6vw, 1.25rem);
+      color: var(--fg-muted);
+      font-weight: 300;
+      max-width: 50ch;
+      text-transform: none;
+      letter-spacing: 0;
+      line-height: 1.5;
+    }
+
+    /* ── CONTENT SLIDES ────────────────────────────── */
+
+    .slide-content h2 {
+      font-size: clamp(1.5rem, 3vw, 2.5rem);
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 2rem;
+      text-transform: var(--heading-case);
+      letter-spacing: var(--heading-tracking);
+    }
+
+    .slide-content > p.lead {
+      font-size: clamp(0.9rem, 1.6vw, 1.2rem);
+      color: var(--fg-muted);
+      max-width: 58ch;
+      line-height: 1.65;
+      margin-bottom: 1.5rem;
+    }
+
+    .slide-content ul {
+      list-style: none;
+      text-align: left;
+      display: inline-block;
+    }
+
+    .slide-content ul li {
+      font-size: clamp(0.9rem, 1.6vw, 1.2rem);
+      line-height: 1.6;   /* pulse-line-height-prose */
+      padding: 0.25em 0;
+      color: var(--fg);
+    }
+
+    .slide-content ul li::before {
+      content: '›';
+      color: var(--accent);
+      margin-right: 0.65em;
+      font-weight: 700;
+    }
+
+    /* ── STAT CARDS ────────────────────────────────── */
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 820px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 2rem 1.25rem;
+      text-align: center;
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+
+    .stat-card .number {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .stat-card .label {
+      font-size: clamp(0.68rem, 1vw, 0.85rem);
+      color: var(--fg-muted);
+      margin-top: 0.5rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    /* ── PILLS ─────────────────────────────────────── */
+
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    .pill {
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+      border-radius: 999px;
+      padding: 0.35em 1.1em;
+      font-size: clamp(0.72rem, 1.1vw, 0.9rem);
+      color: var(--fg);
+      font-weight: 500;
+    }
+
+    .pill.accent {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* ── CARDS ─────────────────────────────────────── */
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+      margin-top: 1.75rem;
+      width: 100%;
+      max-width: 860px;
+      text-align: left;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 1.6rem 1.5rem;
+      transition: border-color 0.25s ease;
+    }
+
+    .card.accent-border { border-color: var(--accent); }
+
+    .card-label {
+      display: inline-block;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .card h4 {
+      font-size: clamp(0.88rem, 1.4vw, 1.05rem);
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 0.5rem;
+    }
+
+    .card p {
+      font-size: clamp(0.78rem, 1.15vw, 0.92rem);
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    /* ── QUOTE BOX ─────────────────────────────────── */
+
+    .quote-box {
+      background: var(--quote-bg);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 0.75rem 0.75rem 0;
+      padding: 1.25rem 1.75rem;
+      margin-top: 2rem;
+      text-align: left;
+      max-width: 58ch;
+    }
+
+    .quote-box p {
+      font-size: clamp(0.95rem, 1.65vw, 1.2rem);
+      font-style: italic;
+      color: var(--fg);
+      font-weight: 300;
+      line-height: 1.55;
+    }
+
+    .quote-box cite {
+      display: block;
+      margin-top: 0.6rem;
+      font-size: 0.82rem;
+      color: var(--accent);
+      font-style: normal;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    /* ── COMPARISON ────────────────────────────────── */
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      width: 100%;
+      max-width: 960px;
+      text-align: left;
+    }
+
+    .compare-col {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 2rem 1.75rem;
+    }
+
+    .compare-col.hl {
+      border-color: var(--accent);
+      background: var(--bg-card-hl);
+    }
+
+    .compare-col h3 {
+      font-size: clamp(1rem, 1.7vw, 1.35rem);
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1.25rem;
+      text-transform: var(--heading-case);
+      letter-spacing: 0.04em;
+    }
+
+    .compare-col ul { list-style: none; }
+
+    .compare-col ul li {
+      font-size: clamp(0.8rem, 1.25vw, 0.98rem);
+      line-height: 1.65;
+      padding: 0.3em 0;
+      color: var(--fg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .compare-col ul li:last-child { border-bottom: none; }
+
+    .compare-verdict {
+      margin-top: 1.25rem;
+      font-size: clamp(0.75rem, 1.1vw, 0.88rem);
+      font-style: italic;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* ── WORKFLOW DIAGRAM ──────────────────────────── */
+
+    .workflow {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      max-width: 1060px;
+      margin-top: 1.5rem;
+    }
+
+    .wf-step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .wf-box {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 1rem 0.5rem;
+      min-height: 86px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 1s ease;
+    }
+
+    .wf-step.hl .wf-box {
+      border-color: var(--accent);
+      border-width: 2px;
+    }
+
+    .wf-num {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+    }
+
+    .wf-name {
+      font-size: clamp(0.72rem, 1.05vw, 0.9rem);
+      font-weight: 700;
+      color: var(--fg);
+      text-transform: var(--heading-case);
+      letter-spacing: 0.02em;
+    }
+
+    .wf-desc {
+      font-size: clamp(0.58rem, 0.82vw, 0.75rem);
+      color: var(--fg-muted);
+      margin-top: 0.3rem;
+      line-height: 1.3;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .wf-arrow {
+      display: flex;
+      align-items: center;
+      padding: 0 0.35rem;
+      padding-top: 43px;
+      color: var(--accent);
+      font-size: 0.9rem;
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    /* ── CODE / INLINE MONO ────────────────────────── */
+
+    code {
+      background: var(--code-bg);
+      border-radius: 0.3em;
+      padding: 0.1em 0.45em;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.85em;
+      color: var(--accent);
+    }
+
+    /* ── CHROME ────────────────────────────────────── */
+
+    #progress-bar {
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.35s ease, background-color 1s ease;
+    }
+
+    #slide-counter {
+      position: fixed;
+      bottom: 1.2rem;
+      right: 1.75rem;
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.06em;
+      transition: color 0.5s ease;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.35);
+    }
+
+    #section-indicator {
+      position: fixed;
+      bottom: 1.2rem;
+      left: 1.75rem;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      font-weight: 700;
+      transition: color 1s ease;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.35);
+    }
+
+    #key-hint {
+      position: fixed;
+      bottom: 3.2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      color: var(--fg-muted);
+      letter-spacing: 0.08em;
+      opacity: 1;
+      transition: opacity 1.5s ease;
+      pointer-events: none;
+      white-space: nowrap;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.35);
+    }
+
+    #key-hint.fade { opacity: 0; }
+
+    /* ── INTERSPORT HERO SLIDE ──────────────────────────
+       Outdoor photography background (hiker, mountain scene)
+       overlaid with a dark scrim to guarantee WCAG AA contrast
+       for white text. The scrim is 55% dark navy so the image
+       still reads through while text stays legible.
+    ────────────────────────────────────────────────── */
+    .slide[data-variant="hero"] {
+      background-color: #082D78; /* fallback if image fails */
+      background-image: url('hero-bg.jpg');
+      background-size: cover;
+      background-position: center 30%; /* keep hiker + mountains in frame */
+      /* NOTE: do NOT add position here — .slide already sets position:absolute */
+    }
+
+    /* Dark scrim — sits between photo and text, below slide children */
+    .slide[data-variant="hero"]::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(4, 18, 52, 0.65) 0%,
+        rgba(4, 18, 52, 0.52) 45%,
+        rgba(4, 18, 52, 0.72) 100%
+      );
+      z-index: 0;
+    }
+
+    /* Lift all direct children above scrim */
+    .slide[data-variant="hero"] > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .slide[data-variant="hero"] .eyebrow {
+      color: #ff3b2e; /* brighter red for visibility over dark photo */
+      letter-spacing: 0.28em;
+      font-weight: 800;
+    }
+    .slide[data-variant="hero"] h1 {
+      color: #ffffff;
+      text-shadow: 0 2px 28px rgba(0,0,0,0.55);
+    }
+    .slide[data-variant="hero"] .subtitle {
+      color: rgba(255, 255, 255, 0.85);
+      text-shadow: 0 1px 8px rgba(0,0,0,0.50);
+    }
+    .slide[data-variant="hero"] .pill {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.30);
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    /* ── INTERSPORT CONTENT SLIDES ──────────────────────
+       Light gray background with the full Pulse token range.
+       Red (#E30613) used for kinetic energy — numbers and
+       bullet markers. Blue range for structure and cards.
+    ────────────────────────────────────────────────── */
+    .slide-content[data-section="guild"] {
+      background-color: #F5F5F5;  /* pulse-gray200 */
+    }
+    .slide-content[data-section="guild"] h2 {
+      color: #164196;             /* pulse-blue100 — blue headings */
+    }
+    .slide-content[data-section="guild"] > p.lead {
+      color: #555555;             /* dark gray secondary text */
+    }
+    .slide-content[data-section="guild"] ul li {
+      color: #1a1a1a;             /* near-black body text */
+    }
+    .slide-content[data-section="guild"] ul li::before {
+      color: #E30613;             /* pulse-red100 — kinetic energy */
+    }
+    .slide-content[data-section="guild"] .stat-card {
+      background: #EDF0F7;        /* pulse-blue05 */
+      border-color: #C7D0E2;      /* pulse-blue30 */
+    }
+    .slide-content[data-section="guild"] .stat-card .number {
+      color: #E30613;             /* bold red numbers = Intersport energy */
+    }
+    .slide-content[data-section="guild"] .stat-card .label {
+      color: #666666;
+    }
+    .slide-content[data-section="guild"] .card {
+      background: #EDF0F7;        /* pulse-blue05 */
+      border-color: #C7D0E2;      /* pulse-blue30 */
+    }
+    .slide-content[data-section="guild"] .card.accent-border {
+      border-color: #164196;
+    }
+    .slide-content[data-section="guild"] .card h4 {
+      color: #164196;             /* blue card headings */
+    }
+    .slide-content[data-section="guild"] .card p {
+      color: #555555;             /* dark gray card body text */
+    }
+    .slide-content[data-section="guild"] .card-label {
+      color: #E30613;             /* red labels in guild content */
+    }
+    .slide-content[data-section="guild"] .pill {
+      background: #EDF0F7;
+      border-color: #C7D0E2;
+      color: #00266A;
+    }
+    .slide-content[data-section="guild"] .pill.accent {
+      background: #164196;
+      border-color: #164196;
+      color: #ffffff;
+    }
+    .slide-content[data-section="guild"] .pill-group .pill {
+      background: #EDF0F7;
+      border-color: #C7D0E2;
+      color: #1a1a1a;
+    }
+    .slide-content[data-section="guild"] .quote-box {
+      background: #EDF0F7;
+      border-left-color: #164196;
+    }
+    .slide-content[data-section="guild"] .quote-box p {
+      color: #1a1a1a;
+    }
+    .slide-content[data-section="guild"] .quote-box cite {
+      color: #E30613;
+    }
+    .slide-content[data-section="guild"] .compare-col {
+      background: #EDF0F7;
+      border-color: #C7D0E2;
+    }
+    .slide-content[data-section="guild"] .compare-col.hl {
+      border-color: #164196;
+      background: #E1E6F1;        /* pulse-blue10 */
+    }
+    .slide-content[data-section="guild"] .compare-col h3 {
+      color: #164196;
+    }
+    .slide-content[data-section="guild"] .compare-col ul li {
+      color: #1a1a1a;
+      border-bottom-color: #E5E5E5;
+    }
+    .slide-content[data-section="guild"] .compare-verdict {
+      color: #E30613;
+    }
+    .slide-content[data-section="guild"] .wf-box {
+      background: #EDF0F7;
+      border-color: #C7D0E2;
+    }
+    .slide-content[data-section="guild"] .wf-step.hl .wf-box {
+      border-color: #164196;
+    }
+    .slide-content[data-section="guild"] .wf-num {
+      color: #E30613;
+    }
+    .slide-content[data-section="guild"] .wf-name {
+      color: #1a1a1a;
+    }
+    .slide-content[data-section="guild"] .wf-desc {
+      color: #666666;
+    }
+    .slide-content[data-section="guild"] .wf-arrow {
+      color: #164196;
+    }
+    .slide-content[data-section="guild"] code {
+      background: #E1E6F1;
+      color: #164196;
+    }
+
+    /* ── GITHUB GRID TEXTURE (section 3 only) ──────── */
+    /* Applied via JS data-theme attribute on body     */
+    body[data-theme="speckit"]::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(0deg,  transparent, transparent 11px, rgba(15,191,62,0.025) 11px, rgba(15,191,62,0.025) 12px),
+        repeating-linear-gradient(90deg, transparent, transparent 11px, rgba(15,191,62,0.025) 11px, rgba(15,191,62,0.025) 12px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body[data-theme="speckit"] #slides-wrapper { z-index: 1; position: relative; }
+
+    /* ── NOTES VIEW ────────────────────────────────── */
+
+    #notes-view {
+      position: fixed;
+      inset: 0;
+      background: #0d0d0c;
+      color: #ede9e2;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: var(--notes-fs);
+      line-height: 1.55;
+      padding: 2rem 3rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      overflow: hidden;
+    }
+
+    #notes-view.hidden { display: none; }
+
+    #notes-header {
+      display: flex;
+      align-items: baseline;
+      gap: 1.25rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    #notes-counter {
+      font-size: 0.82em;
+      color: #555;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    #notes-slide-title {
+      font-size: 0.9em;
+      color: #999;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #notes-section-badge {
+      margin-left: auto;
+      font-size: 0.68em;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #484840;
+      flex-shrink: 0;
+    }
+
+    #notes-body {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    #notes-so-what {
+      font-size: 1.05em;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.3;
+    }
+
+    #notes-bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.42rem;
+    }
+
+    #notes-bullets li {
+      color: #d4cfc6;
+      display: flex;
+      gap: 0.7rem;
+      align-items: baseline;
+    }
+
+    #notes-bullets li::before {
+      content: '·';
+      color: #484840;
+      flex-shrink: 0;
+      font-size: 1.3em;
+      line-height: 1;
+    }
+
+    #notes-stage {
+      margin-top: 0.4rem;
+      font-size: 0.80em;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #c9962a;
+    }
+
+    #notes-footer {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 0.7rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    #notes-next { font-size: 0.75em; color: #3d3d38; }
+    #notes-next span { color: #666; }
+
+    #font-controls { display: flex; gap: 0.5rem; }
+
+    #font-controls button {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #888;
+      border-radius: 0.4rem;
+      padding: 0.3em 0.8em;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+
+    #font-controls button:hover { background: rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════
+     PRESENTATION
+════════════════════════════════════════════════════ -->
+<div id="presentation">
+  <div id="slides-wrapper">
+
+    <!-- ════════════════════════════════════════════
+         SECTION 1 — AI GUILD
+         Brand: Intersport
+         Theme: White · Deep Navy · Brand Blue · DIN Pro (Barlow Condensed)
+    ════════════════════════════════════════════ -->
+
+    <!-- 0 → Title -->
+    <div class="slide slide-section-title active" data-section="guild" data-index="0" data-variant="hero">
+      <div class="eyebrow">Intersport · Tech Organisation</div>
+      <h1>AI Guild</h1>
+      <p class="subtitle">How We're Building with AI at Intersport</p>
+      <div class="pill-group" style="margin-top:2.5rem;">
+        <span class="pill">Intersport Digital</span>
+        <span class="pill">Intersport Germany</span>
+      </div>
+    </div>
+
+    <!-- 1 → Who We Are -->
+    <div class="slide slide-content" data-section="guild" data-index="1">
+      <h2>Who We Are</h2>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="number">8</div>
+          <div class="label">Engineers</div>
+        </div>
+        <div class="stat-card">
+          <div class="number">2</div>
+          <div class="label">Companies — IDG &amp; IDE</div>
+        </div>
+        <div class="stat-card">
+          <div class="number">4</div>
+          <div class="label">Weeks Old</div>
+        </div>
+      </div>
+      <div class="pill-group" style="margin-top:2rem;">
+        <span class="pill">Intersport Digital (IDG)</span>
+        <span class="pill">Intersport Germany (IDE)</span>
+        <span class="pill" style="background:#008673;border-color:#008673;color:#fff;font-weight:700;">One Guild</span>
+      </div>
+    </div>
+
+    <!-- 2 → What We Do -->
+    <div class="slide slide-content" data-section="guild" data-index="2">
+      <h2>What We Do</h2>
+      <ul>
+        <li>Discover better ways of working with AI</li>
+        <li>Research how AI is changing software engineering</li>
+        <li>Validate methodologies before adopting them as shared practice</li>
+        <li>Share learnings and tools across both companies</li>
+        <li>Build shared skills, extensions &amp; rules</li>
+      </ul>
+    </div>
+
+    <!-- 3 → How We Work -->
+    <div class="slide slide-content" data-section="guild" data-index="3">
+      <h2>How We Work</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h4>Friday Sync</h4>
+          <p>Weekly session in the morning — then the afternoon is free for exploration and new ideas</p>
+        </div>
+        <div class="card">
+          <h4>Async in Between</h4>
+          <p>Ideas, discoveries and new skills shared continuously — no waiting for Friday</p>
+        </div>
+        <div class="card">
+          <h4>Research First</h4>
+          <p>Anyone brings a finding — the group validates and decides whether to adopt it as practice</p>
+        </div>
+        <div class="card" style="border-color:#008673;">
+          <h4 style="color:#008673;">Already Shipping</h4>
+          <p>4 weeks in — a SpecKit catalog, a Claude Code marketplace, and extensions already in active use</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         SECTION 2 — SPEC-DRIVEN DESIGN
+         Brand: Anthropic
+         Theme: Warm near-black · Warm cream · Coral · Poppins
+    ════════════════════════════════════════════ -->
+
+    <!-- 4 → Section title -->
+    <div class="slide slide-section-title" data-section="specdriven" data-index="4">
+      <div class="eyebrow">Section 2</div>
+      <h1>Spec-Driven<br>Design</h1>
+      <p class="subtitle">How we think about using AI for professional software engineering</p>
+    </div>
+
+    <!-- 5 → Vibe Coding -->
+    <div class="slide slide-content" data-section="specdriven" data-index="5">
+      <h2>Vibe Coding</h2>
+      <p class="lead">Natural language in. Output out. Iterate by feel.</p>
+      <ul>
+        <li>Great for rapid prototyping and throwaway scripts</li>
+        <li>Works well for solo exploration and one-time tasks</li>
+        <li>No written spec — no reviewable, shareable artifact</li>
+        <li>The codebase becomes the de-facto specification by default</li>
+        <li>Intent diverges from implementation over time</li>
+      </ul>
+      <div class="quote-box">
+        <p>"Vibe coding is for code you throw away."</p>
+      </div>
+    </div>
+
+    <!-- 6 → Spec-Driven Design -->
+    <div class="slide slide-content" data-section="specdriven" data-index="6">
+      <h2>Spec-Driven Design</h2>
+      <p class="lead">Front-load the thinking. The specification is the primary artifact.</p>
+      <ul>
+        <li>Write the "what and why" before a single line of code</li>
+        <li>The spec is reviewable, evolvable, and version-controlled</li>
+        <li>Foundation, patterns, architecture — by intent, not by accident</li>
+        <li>Reliable, maintainable, modular output</li>
+        <li>Code is the derived artifact — the spec is the source of truth</li>
+      </ul>
+      <div class="quote-box">
+        <p>"Spec-driven design is for code you stand behind."</p>
+      </div>
+    </div>
+
+    <!-- 7 → Comparison -->
+    <div class="slide slide-content" data-section="specdriven" data-index="7">
+      <h2>The Difference</h2>
+      <div class="compare-grid">
+        <div class="compare-col">
+          <h3>Vibe Coding</h3>
+          <ul>
+            <li>Output-first</li>
+            <li>No written artifact</li>
+            <li>Iterate by feel</li>
+            <li>Context lives in your head</li>
+            <li>Great for solo &amp; throwaway</li>
+            <li>Hard to review, test, or hand off</li>
+            <li>Intent drifts from implementation</li>
+          </ul>
+          <div class="compare-verdict">Code you throw away</div>
+        </div>
+        <div class="compare-col hl">
+          <h3>Spec-Driven Design</h3>
+          <ul>
+            <li>Understanding-first</li>
+            <li>Spec = primary artifact</li>
+            <li>Decisions are explicit and written</li>
+            <li>Context is shared and version-controlled</li>
+            <li>Built for teams &amp; scale</li>
+            <li>Reviewable, testable, reproducible</li>
+            <li>Intent is anchored in the spec</li>
+          </ul>
+          <div class="compare-verdict">Code you stand behind</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8 → Why We Chose It -->
+    <div class="slide slide-content" data-section="specdriven" data-index="8">
+      <h2>Why Spec-Driven Design</h2>
+      <ul>
+        <li>We build software that runs Intersport — it has to last</li>
+        <li>Reliable, maintainable and scalable is non-negotiable</li>
+        <li>Good architecture requires intent, not instinct</li>
+        <li>Modularity and replaceability don't happen by accident</li>
+        <li>We need code we can replace — which means code we understand</li>
+      </ul>
+      <div class="quote-box" style="margin-top:2rem;">
+        <p>We needed a process that produces understanding, not just output. We needed a tool that makes that process practical.</p>
+        <cite>Enter SpecKit →</cite>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         SECTION 3 — SPECKIT
+         Brand: GitHub
+         Theme: Process black (#101411, green-tinted) · Off-white · GitHub Green · Mona Sans
+    ════════════════════════════════════════════ -->
+
+    <!-- 9 → Section title -->
+    <div class="slide slide-section-title" data-section="speckit" data-index="9">
+      <div class="eyebrow">Section 3</div>
+      <h1>SpecKit</h1>
+      <p class="subtitle">GitHub's open-source toolkit for spec-driven development with AI</p>
+      <div style="margin-top:2rem;">
+        <span class="pill" style="border-color:rgba(15,191,62,0.35);background:rgba(15,191,62,0.08);">github/spec-kit</span>
+      </div>
+    </div>
+
+    <!-- 10 → Workflow -->
+    <div class="slide slide-content" data-section="speckit" data-index="10">
+      <h2>The SpecKit Workflow</h2>
+      <div class="workflow">
+        <div class="wf-step hl">
+          <div class="wf-box">
+            <div class="wf-num">01</div>
+            <div class="wf-name">Constitution</div>
+            <div class="wf-desc">Non-negotiable rules</div>
+          </div>
+        </div>
+        <div class="wf-arrow">›</div>
+        <div class="wf-step">
+          <div class="wf-box">
+            <div class="wf-num">02</div>
+            <div class="wf-name">Specify</div>
+            <div class="wf-desc">What &amp; why</div>
+          </div>
+        </div>
+        <div class="wf-arrow">›</div>
+        <div class="wf-step">
+          <div class="wf-box">
+            <div class="wf-num">03</div>
+            <div class="wf-name">Clarify</div>
+            <div class="wf-desc">Resolve ambiguity</div>
+          </div>
+        </div>
+        <div class="wf-arrow">›</div>
+        <div class="wf-step">
+          <div class="wf-box">
+            <div class="wf-num">04</div>
+            <div class="wf-name">Plan</div>
+            <div class="wf-desc">How + tech stack</div>
+          </div>
+        </div>
+        <div class="wf-arrow">›</div>
+        <div class="wf-step">
+          <div class="wf-box">
+            <div class="wf-num">05</div>
+            <div class="wf-name">Tasks</div>
+            <div class="wf-desc">Small testable chunks</div>
+          </div>
+        </div>
+        <div class="wf-arrow">›</div>
+        <div class="wf-step hl">
+          <div class="wf-box">
+            <div class="wf-num">06</div>
+            <div class="wf-name">Implement</div>
+            <div class="wf-desc">AI executes precisely</div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:1.5rem;font-size:clamp(0.75rem,1.1vw,0.9rem);color:var(--fg-muted);">
+        Each step is a slash command — Claude Code · GitHub Copilot · Cursor · Gemini CLI
+      </p>
+    </div>
+
+    <!-- 11 → Extending SpecKit -->
+    <div class="slide slide-content" data-section="speckit" data-index="11">
+      <h2>Extending SpecKit</h2>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-label">Presets</div>
+          <h4>Customise the Output</h4>
+          <p>Override what commands produce — reshape templates and terminology without forking. Stackable, priority-based.</p>
+        </div>
+        <div class="card">
+          <div class="card-label">Extensions</div>
+          <h4>Add New Commands</h4>
+          <p>New slash commands and capabilities — code review, Jira integration, multi-agent QA, diagram generation. 40+ community extensions.</p>
+        </div>
+        <div class="card">
+          <div class="card-label">Workflows</div>
+          <h4>Orchestrate Pipelines</h4>
+          <p>Multi-step automation beyond the core steps — bug fixes, refactors, hotfixes, feature deprecations.</p>
+        </div>
+        <div class="card">
+          <div class="card-label">Catalog</div>
+          <h4>Discover &amp; Install</h4>
+          <p>Official and community catalogs. Browse with <code>specify extension search</code>. One command to install. Host your own private catalog.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 12 → Our Catalog -->
+    <div class="slide slide-content" data-section="speckit" data-index="12">
+      <h2>Our Intersport Catalog</h2>
+      <div class="card-grid" style="max-width:820px;">
+        <div class="card accent-border">
+          <div class="card-label">Extension</div>
+          <h4>Pre-Specify — Multi-Repo Context</h4>
+          <p>Pulls additional repos into the agent's context before the specify step — only when the task spans multiple repos. Keeps context clean when those repos aren't needed.</p>
+        </div>
+        <div class="card accent-border">
+          <div class="card-label">Preset Override</div>
+          <h4>Git Branch Naming</h4>
+          <p>Replaces SpecKit's default git extension with Intersport's own branch naming convention. Built on the original — demonstrates how easy SpecKit is to adapt.</p>
+        </div>
+      </div>
+      <p style="margin-top:1.75rem;font-size:clamp(0.78rem,1.2vw,0.92rem);color:var(--fg-muted);max-width:60ch;">
+        Two examples from four weeks of work — every extension is available to both companies through the shared catalog.
+      </p>
+    </div>
+
+    <!-- 13 → Claude Marketplace -->
+    <div class="slide slide-content" data-section="speckit" data-index="13">
+      <h2>Our Claude Code Marketplace</h2>
+      <ul>
+        <li>Internal registry of skills, rules &amp; slash commands for Claude Code</li>
+        <li>Skills extend what Claude Code can do in our specific context</li>
+        <li>Shared across IDG &amp; IDE — built once in the guild, used everywhere</li>
+        <li>Growing with every Friday session</li>
+      </ul>
+      <div class="quote-box" style="margin-top:2rem;">
+        <p>We don't just use SpecKit — we've made it ours. The catalog and marketplace are how we make AI work for Intersport, not the other way around.</p>
+      </div>
+    </div>
+
+    <!-- 14 → Handoff -->
+    <div class="slide slide-section-title" data-section="speckit" data-index="14">
+      <div class="eyebrow">Up Next</div>
+      <h1>Skills in<br>Action</h1>
+      <p class="subtitle">Raphael will walk you through the skills we've built — in detail</p>
+    </div>
+
+  </div><!-- /slides-wrapper -->
+
+  <div id="progress-bar"></div>
+  <div id="slide-counter">1 / 15</div>
+  <div id="section-indicator">AI Guild</div>
+  <div id="key-hint">← → navigate · open ?notes for speaker view</div>
+</div><!-- /presentation -->
+
+
+<!-- ════════════════════════════════════════════════════
+     NOTES VIEW  (add ?notes to URL)
+════════════════════════════════════════════════════ -->
+<div id="notes-view" class="hidden">
+  <div id="notes-header">
+    <div id="notes-counter">1 / 15</div>
+    <div id="notes-slide-title">Title</div>
+    <div id="notes-section-badge">AI Guild</div>
+  </div>
+  <div id="notes-body">
+    <div id="notes-so-what"></div>
+    <ul id="notes-bullets"></ul>
+    <div id="notes-stage"></div>
+  </div>
+  <div id="notes-footer">
+    <div id="notes-next">Next: <span id="notes-next-title">—</span></div>
+    <div id="font-controls">
+      <button id="font-down">A−</button>
+      <button id="font-up">A+</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(() => {
+  'use strict';
+
+  // ── BRAND THEMES ────────────────────────────────────────
+  // Each theme faithfully reproduces the brand's actual design tokens.
+  // Intersport: white-light theme (their real site is white + navy, not dark blue)
+  // Anthropic:  warm near-black + cream (their product + brand language)
+  // GitHub:     process black with green undertone (their official brand guidelines)
+
+  const themes = {
+    guild: {
+      // Intersport Pulse design token system
+      // Body bg = light gray (content slides); hero title uses CSS override #082D78
+      '--bg':               '#F5F5F5',       // pulse-gray200 — content slide background
+      '--bg-card':          '#EDF0F7',       // pulse-blue05 — blue-tinted cards
+      '--bg-card-hl':       '#E1E6F1',       // pulse-blue10 — deeper blue tint
+      '--fg':               '#1a1a1a',       // near-black body text (blue reserved for headings/accents)
+      '--fg-muted':         '#555555',       // dark gray — secondary text
+      '--accent':           '#164196',       // pulse-blue100 — primary brand blue
+      '--accent-secondary': '#E30613',       // pulse-red100 — kinetic energy red
+      '--border':           '#C7D0E2',       // pulse-blue30 — card borders
+      '--border-hl':        '#164196',       // brand blue highlight border
+      '--pill-bg':          '#EDF0F7',
+      '--pill-border':      '#C7D0E2',
+      '--quote-bg':         '#EDF0F7',
+      '--code-bg':          '#E1E6F1',
+      '--heading-case':     'uppercase',
+      '--heading-tracking': '0.02em',
+      '--font':             "'DIN Pro', 'Barlow Condensed', system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+      '--font-body':        "'DIN Pro', 'Barlow Condensed', system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+      name: 'AI Guild',
+    },
+    specdriven: {
+      // Anthropic brand system — official colors from anthropics/skills brand-guidelines
+      // Headings: Poppins · Body: Lora · Accent: coral #d97757
+      // Light gray #e8e6dc used for borders · Sage green #788c5d as tertiary accent
+      '--bg':               '#141413',       // primary dark
+      '--bg-card':          'rgba(232, 230, 220, 0.05)',  // e8e6dc tint (light gray)
+      '--bg-card-hl':       'rgba(217, 119, 87, 0.10)',
+      '--fg':               '#faf9f5',       // light background / text on dark
+      '--fg-muted':         '#b0aea5',       // mid gray
+      '--accent':           '#d97757',       // orange — primary accent
+      '--accent-secondary': '#6a9bcc',       // blue — secondary accent
+      '--accent-tertiary':  '#788c5d',       // green — tertiary accent
+      '--border':           'rgba(232, 230, 220, 0.10)',  // light gray at low opacity
+      '--border-hl':        'rgba(217, 119, 87, 0.45)',
+      '--pill-bg':          'rgba(232, 230, 220, 0.07)',
+      '--pill-border':      'rgba(232, 230, 220, 0.14)',
+      '--quote-bg':         'rgba(232, 230, 220, 0.04)',
+      '--code-bg':          'rgba(232, 230, 220, 0.09)',
+      '--heading-case':     'none',
+      '--heading-tracking': '-0.02em',
+      '--font':             "'Poppins', Arial, sans-serif",       // headings
+      '--font-body':        "'Lora', Georgia, serif",             // body text
+      name: 'Spec-Driven Design',
+    },
+    speckit: {
+      // GitHub brand system — process black (green-tinted), GitHub green, Mona Sans
+      '--bg':               '#101411',       // process black — has green warmth, NOT pure black
+      '--bg-card':          'rgba(242, 245, 243, 0.05)',
+      '--bg-card-hl':       'rgba(15, 191, 62, 0.09)',
+      '--fg':               '#F2F5F3',       // Gray 1 — off-white with green undertone
+      '--fg-muted':         '#909692',       // Gray 4
+      '--accent':           '#0FBF3E',       // GitHub Green — Pantone 360
+      '--accent-secondary': '#8534F3',       // Copilot purple
+      '--border':           'rgba(242, 245, 243, 0.09)',
+      '--border-hl':        'rgba(15, 191, 62, 0.40)',
+      '--pill-bg':          'rgba(242, 245, 243, 0.06)',
+      '--pill-border':      'rgba(242, 245, 243, 0.13)',
+      '--quote-bg':         'rgba(242, 245, 243, 0.04)',
+      '--code-bg':          'rgba(15, 191, 62, 0.10)',
+      '--heading-case':     'none',
+      '--heading-tracking': '-0.03em',
+      '--font':             "'Mona Sans Variable', 'Mona Sans', 'Inter', system-ui, sans-serif",
+      '--font-body':        "'Mona Sans Variable', 'Mona Sans', 'Inter', system-ui, sans-serif",
+      name: 'SpecKit',
+    },
+  };
+
+  // ── SPEAKER NOTES ────────────────────────────────────────
+  const notes = [
+    { // 0 — Title
+      soWhat: 'Welcome — set the stage for 20 minutes',
+      bullets: [
+        'AI Guild → 4 weeks old, already building',
+        '3 sections: who we are / what we believe / how we work',
+        'cross-company: IDG + IDE, one shared practice',
+      ],
+      stage: '[PAUSE] let audience settle before first arrow',
+    },
+    { // 1 — Who We Are
+      soWhat: 'Real team, real results — not a committee',
+      bullets: [
+        '8 engineers from two Intersport companies',
+        'IDG = Intersport Digital · IDE = Intersport Germany',
+        '4 weeks old → already catalog, marketplace, extensions',
+        'Friday format: morning sync + free afternoon',
+      ],
+      stage: '[TRANSITION] what\'s the mission?',
+    },
+    { // 2 — What We Do
+      soWhat: 'Discover, validate, share — systematically',
+      bullets: [
+        'not just "use AI more" → use it right',
+        'spec-driven design: first big validated finding',
+        'learnings shared across both companies',
+        'skills + extensions: built once, used everywhere',
+      ],
+      stage: '[TRANSITION] how do Fridays actually look?',
+    },
+    { // 3 — How We Work
+      soWhat: 'Lightweight cadence, high output',
+      bullets: [
+        'Friday: morning sync → afternoon free exploration',
+        'async between: ideas, discoveries, new skills',
+        'anyone brings a finding → group validates it',
+        '4 weeks → shipped catalog + marketplace already',
+      ],
+      stage: '[TRANSITION] so what did we find? → spec-driven design',
+    },
+    { // 4 — Spec-Driven Design section title
+      soWhat: 'The big question: how should we use AI well?',
+      bullets: [
+        'two approaches emerging in the industry',
+        'one scales to teams and production — one doesn\'t',
+      ],
+      stage: '[PAUSE] let the theme transition land — dramatic visual shift',
+    },
+    { // 5 — Vibe Coding
+      soWhat: 'Vibe coding: fast, fun, limited',
+      bullets: [
+        'natural language → iterate by feel → ship',
+        'great for: throwaway, prototypes, solo scripts',
+        'problem: no artifact, no architecture, no review',
+        'codebase becomes the de-facto spec by default',
+      ],
+      stage: '[TRANSITION] what do we need instead?',
+    },
+    { // 6 — Spec-Driven Design
+      soWhat: 'Front-load the thinking — spec is the primary artifact',
+      bullets: [
+        'spec = primary artifact, code = derived output',
+        'written understanding → reviewable → evolvable',
+        'foundation, patterns, architecture — by intent',
+      ],
+      stage: '[PAUSE] let the contrast with the previous slide land',
+    },
+    { // 7 — Comparison
+      soWhat: 'Side by side — the structural gap is clear',
+      bullets: [
+        'walk left column first',
+        'then right — highlight "reviewable + reproducible"',
+        'key: shared context vs context in your head',
+      ],
+      stage: '[PAUSE] give audience a moment to read',
+    },
+    { // 8 — Why We Chose It
+      soWhat: 'We build to last — vibe coding can\'t do that',
+      bullets: [
+        'Intersport needs reliable, maintainable, scalable',
+        'modularity + replaceability = good architecture',
+        'that requires foundation and intent — not vibing',
+        'code we can replace = code we understand',
+      ],
+      stage: '[TRANSITION] we needed a tool → SpecKit',
+    },
+    { // 9 — SpecKit section title
+      soWhat: 'GitHub\'s open-source answer to spec-driven dev',
+      bullets: [
+        'released late 2024, community growing fast',
+        'CLI + slash commands, works with all major AI agents',
+      ],
+      stage: '[PAUSE] let the GitHub theme land — darkest section',
+    },
+    { // 10 — Workflow
+      soWhat: '6 steps from principles to code',
+      bullets: [
+        'constitution = non-negotiables first → governs everything',
+        'specify = WHAT and WHY, never HOW',
+        'clarify = resolve ambiguity before you build anything',
+        'plan = HOW + tech stack decisions',
+        'tasks = small, independently testable chunks',
+        'implement = AI executes precisely, not guesses',
+      ],
+      stage: '[PAUSE] each step is a slash command in your AI agent',
+    },
+    { // 11 — Extending SpecKit
+      soWhat: 'SpecKit is designed to be extended — nothing is locked in',
+      bullets: [
+        'presets: customize what commands produce (override templates)',
+        'extensions: add new commands + capabilities',
+        'workflows: multi-step orchestration pipelines',
+        '40+ community extensions already available',
+      ],
+      stage: '[TRANSITION] and we built our own Intersport extensions',
+    },
+    { // 12 — Our Catalog
+      soWhat: 'We extended SpecKit for Intersport\'s specific context',
+      bullets: [
+        'pre-specify: pull repos into context only when needed',
+        'git branch override: our naming convention, built on the original',
+        '4 weeks → two custom extensions already in use',
+        'demonstrates how easy SpecKit adapts to your org',
+      ],
+      stage: '[TRANSITION] same principle for Claude Code skills',
+    },
+    { // 13 — Claude Marketplace
+      soWhat: 'Same idea — internal registry for Claude Code',
+      bullets: [
+        'skills, rules, slash commands — all shared',
+        'built once in the guild → used by both companies',
+        'grows every Friday session',
+      ],
+      stage: '[TRANSITION] Raphael goes deep on skills — introduce him',
+    },
+    { // 14 — Handoff
+      soWhat: 'Foundation laid — now the concrete details',
+      bullets: [
+        'we covered: why the guild / what spec-driven design is / how SpecKit works',
+        'Raphael shows the skills themselves — in action',
+      ],
+      stage: '[HAND OFF] introduce Raphael — pass the mic',
+    },
+  ];
+
+  // ── DOM REFS ─────────────────────────────────────────────
+  const slides       = [...document.querySelectorAll('.slide')];
+  const total        = slides.length;
+  const progressBar  = document.getElementById('progress-bar');
+  const slideCounter = document.getElementById('slide-counter');
+  const sectionInd   = document.getElementById('section-indicator');
+  const keyHint      = document.getElementById('key-hint');
+
+  // ── STATE ────────────────────────────────────────────────
+  let current        = 0;
+  let currentSection = 'guild';
+  let notesFontSize  = 20;
+
+  const channel = new BroadcastChannel('ai-guild-presentation');
+  const isNotes = location.search.includes('notes');
+
+  // ── THEME ────────────────────────────────────────────────
+  function applyTheme(section) {
+    currentSection = section;
+    const t = themes[section];
+    const root = document.documentElement;
+    Object.entries(t).forEach(([k, v]) => {
+      if (k.startsWith('--')) root.style.setProperty(k, v);
+    });
+    document.body.style.fontFamily = t['--font-body'] || t['--font'];
+    document.body.dataset.theme = section;
+    if (sectionInd) sectionInd.textContent = t.name;
+  }
+
+  // ── NAVIGATION ───────────────────────────────────────────
+  function goTo(n) {
+    if (n < 0 || n >= total) return;
+
+    const prev = current;
+    slides[prev].classList.remove('active');
+    slides[prev].classList.add('leaving');
+    setTimeout(() => slides[prev].classList.remove('leaving'), 480);
+
+    current = n;
+    slides[current].classList.add('active');
+
+    applyTheme(slides[current].dataset.section);
+
+    if (progressBar)  progressBar.style.width  = `${((current + 1) / total) * 100}%`;
+    if (slideCounter) slideCounter.textContent = `${current + 1} / ${total}`;
+
+    channel.postMessage({ type: 'navigate', index: current, total });
+  }
+
+  // ── KEYBOARD ─────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (isNotes) return;
+    if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); goTo(current + 1); }
+    if (['ArrowLeft', 'ArrowUp'].includes(e.key))         { e.preventDefault(); goTo(current - 1); }
+    if (e.key === 'Home') goTo(0);
+    if (e.key === 'End')  goTo(total - 1);
+  });
+
+  // ── KEY HINT ─────────────────────────────────────────────
+  if (keyHint) {
+    setTimeout(() => keyHint.classList.add('fade'), 5000);
+    document.addEventListener('keydown', () => keyHint.classList.add('fade'), { once: true });
+  }
+
+  // ── NOTES MODE ───────────────────────────────────────────
+  function renderNotes(index) {
+    const n       = notes[index];
+    const el      = slides[index];
+    const sec     = el.dataset.section;
+    const titleEl = el.querySelector('h1, h2');
+
+    document.getElementById('notes-counter').textContent     = `${index + 1} / ${total}`;
+    document.getElementById('notes-slide-title').textContent = titleEl
+      ? titleEl.textContent.replace(/\s+/g, ' ').trim()
+      : `Slide ${index + 1}`;
+    document.getElementById('notes-section-badge').textContent = themes[sec]?.name || sec;
+    document.getElementById('notes-so-what').textContent     = n.soWhat;
+    document.getElementById('notes-stage').textContent       = n.stage;
+
+    const bulletsEl = document.getElementById('notes-bullets');
+    bulletsEl.innerHTML = '';
+    n.bullets.forEach(b => {
+      const li = document.createElement('li');
+      li.textContent = b;
+      bulletsEl.appendChild(li);
+    });
+
+    const nextSlide   = slides[index + 1];
+    const nextTitleEl = nextSlide?.querySelector('h1, h2');
+    document.getElementById('notes-next-title').textContent = nextTitleEl
+      ? nextTitleEl.textContent.replace(/\s+/g, ' ').trim()
+      : '— end of presentation';
+  }
+
+  function initNotes() {
+    document.getElementById('presentation').style.display = 'none';
+    document.getElementById('notes-view').classList.remove('hidden');
+
+    channel.onmessage = ({ data }) => {
+      if (data.type === 'navigate') renderNotes(data.index);
+    };
+
+    document.getElementById('font-up').addEventListener('click', () => {
+      notesFontSize = Math.min(40, notesFontSize + 2);
+      document.documentElement.style.setProperty('--notes-fs', notesFontSize + 'px');
+    });
+    document.getElementById('font-down').addEventListener('click', () => {
+      notesFontSize = Math.max(14, notesFontSize - 2);
+      document.documentElement.style.setProperty('--notes-fs', notesFontSize + 'px');
+    });
+
+    renderNotes(0);
+  }
+
+  // ── INIT ─────────────────────────────────────────────────
+  if (isNotes) {
+    initNotes();
+  } else {
+    applyTheme('guild');
+    if (progressBar)  progressBar.style.width  = `${(1 / total) * 100}%`;
+    if (slideCounter) slideCounter.textContent = `1 / ${total}`;
+  }
+
+})();
+</script>
+</body>
+</html>
